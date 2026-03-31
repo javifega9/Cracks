@@ -3,8 +3,6 @@ import os
 import re
 import threading
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -21,10 +19,6 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 SHOPPING_GL = os.getenv("SHOPPING_GL", "es")
 SHOPPING_HL = os.getenv("SHOPPING_HL", "es")
 CHOLLO_THRESHOLD = float(os.getenv("CHOLLO_THRESHOLD", "0.75"))
-REVIEW_INTERVAL_SECONDS = int(os.getenv("REVIEW_INTERVAL_SECONDS", "3600"))
-SAVED_SEARCHES_FILE = Path(__file__).with_name("saved_searches.json")
-FILE_LOCK = threading.Lock()
-REVIEW_THREAD_STARTED = False
 AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "").strip()
 AMAZON_DOMAIN = os.getenv("AMAZON_DOMAIN", "amazon.es").strip().lower()
 AMAZON_CACHE: dict[str, str | None] = {}
@@ -64,36 +58,6 @@ class SearchResponse(BaseModel):
     precio_medio: float | None = None
     productos: list[Product]
     top_3_mejores_opciones: list[Product]
-
-
-class SaveSearchResponse(BaseModel):
-    message: str
-    query_original: str
-    ultima_revision: str
-
-
-class SavedSearchItem(BaseModel):
-    query_original: str
-    query_mejorada: str
-    incluir_palabras: list[str]
-    modo_inclusion: str
-    excluir_palabras: list[str]
-    guardada_en: str
-    ultima_revision: str
-    total_productos: int
-    chollos_detectados: int
-
-
-class SavedSearchListResponse(BaseModel):
-    busquedas_guardadas: list[SavedSearchItem]
-
-
-def now_iso() -> str:
-    return datetime.now().astimezone().replace(microsecond=0).isoformat()
-
-
-def today_key() -> str:
-    return datetime.now().astimezone().date().isoformat()
 
 
 def get_env(name: str) -> str:
@@ -586,148 +550,6 @@ def run_search_logic(
     )
     set_cached_search_result(cache_key, result)
     return result
-
-
-def ensure_saved_search_file() -> None:
-    with FILE_LOCK:
-        if not SAVED_SEARCHES_FILE.exists():
-            SAVED_SEARCHES_FILE.write_text(
-                json.dumps([], ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-
-
-def load_saved_searches_raw() -> list[dict[str, Any]]:
-    ensure_saved_search_file()
-
-    with FILE_LOCK:
-        try:
-            raw = json.loads(SAVED_SEARCHES_FILE.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            raw = []
-
-    if isinstance(raw, list):
-        return raw
-    return []
-
-
-def save_saved_searches_raw(items: list[dict[str, Any]]) -> None:
-    with FILE_LOCK:
-        SAVED_SEARCHES_FILE.write_text(
-            json.dumps(items, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-
-def save_search_record(
-    query: str,
-    include_words: list[str] | None = None,
-    include_mode: str = "all",
-    exclude_words: list[str] | None = None,
-) -> dict[str, Any]:
-    include_words = include_words or []
-    exclude_words = exclude_words or []
-    include_mode = "any" if include_mode == "any" else "all"
-    result = run_search_logic(query, include_words, include_mode, exclude_words)
-    result_dict = model_to_dict(result)
-    saved_items = load_saved_searches_raw()
-    timestamp = now_iso()
-
-    record = {
-        "query_original": result.query_original,
-        "query_mejorada": result.query_mejorada,
-        "incluir_palabras": include_words,
-        "modo_inclusion": include_mode,
-        "excluir_palabras": exclude_words,
-        "guardada_en": timestamp,
-        "ultima_revision": timestamp,
-        "ultima_revision_dia": today_key(),
-        "total_productos": len(result.productos),
-        "chollos_detectados": sum(1 for item in result.productos if item.es_chollo),
-        "ultimo_resultado": result_dict,
-        "last_error": None,
-    }
-
-    updated = False
-    for index, item in enumerate(saved_items):
-        if item.get("query_original", "").strip().lower() == query.strip().lower():
-            record["guardada_en"] = item.get("guardada_en", timestamp)
-            saved_items[index] = record
-            updated = True
-            break
-
-    if not updated:
-        saved_items.append(record)
-
-    save_saved_searches_raw(saved_items)
-    return record
-
-
-def review_saved_searches(force: bool = False) -> list[dict[str, Any]]:
-    saved_items = load_saved_searches_raw()
-    today = today_key()
-    changed = False
-
-    for item in saved_items:
-        if not force and item.get("ultima_revision_dia") == today:
-            continue
-
-        query = item.get("query_original")
-        if not query:
-            continue
-
-        try:
-            include_words = list(item.get("incluir_palabras", []))
-            include_mode = item.get("modo_inclusion", "all")
-            exclude_words = list(item.get("excluir_palabras", []))
-            result = run_search_logic(query, include_words, include_mode, exclude_words)
-            result_dict = model_to_dict(result)
-            timestamp = now_iso()
-            item["query_mejorada"] = result.query_mejorada
-            item["incluir_palabras"] = include_words
-            item["modo_inclusion"] = include_mode
-            item["excluir_palabras"] = exclude_words
-            item["ultima_revision"] = timestamp
-            item["ultima_revision_dia"] = today
-            item["total_productos"] = len(result.productos)
-            item["chollos_detectados"] = sum(
-                1 for product in result.productos if product.es_chollo
-            )
-            item["ultimo_resultado"] = result_dict
-            item["last_error"] = None
-            changed = True
-        except Exception as exc:
-            item["ultima_revision"] = now_iso()
-            item["ultima_revision_dia"] = today
-            item["last_error"] = str(exc)
-            changed = True
-
-    if changed:
-        save_saved_searches_raw(saved_items)
-
-    return saved_items
-
-
-def background_review_loop() -> None:
-    while True:
-        try:
-            review_saved_searches()
-        except Exception:
-            pass
-        time.sleep(REVIEW_INTERVAL_SECONDS)
-
-
-@app.on_event("startup")
-def startup_tasks() -> None:
-    global REVIEW_THREAD_STARTED
-
-    ensure_saved_search_file()
-    if REVIEW_THREAD_STARTED:
-        return
-
-    thread = threading.Thread(target=background_review_loop, daemon=True)
-    thread.start()
-    REVIEW_THREAD_STARTED = True
 
 
 def build_home_page() -> str:
@@ -1873,62 +1695,6 @@ def search(
         include_mode,
         split_words(exclude_words),
     )
-
-
-@app.post("/save-search", response_model=SaveSearchResponse)
-def save_search(
-    request: Request,
-    query: str = Query(..., min_length=2, description="Busqueda a guardar"),
-    include_words: str = Query("", description="Palabras que deben aparecer en el titulo"),
-    include_mode: str = Query("all", description="all o any para las palabras a incluir"),
-    exclude_words: str = Query("", description="Palabras que no deben aparecer en el titulo"),
-) -> SaveSearchResponse:
-    enforce_rate_limit(request)
-    record = save_search_record(
-        query,
-        split_words(include_words),
-        include_mode,
-        split_words(exclude_words),
-    )
-    return SaveSearchResponse(
-        message="Busqueda guardada correctamente.",
-        query_original=record["query_original"],
-        ultima_revision=record["ultima_revision"],
-    )
-
-
-@app.get("/saved-searches", response_model=SavedSearchListResponse)
-def list_saved_searches(request: Request) -> SavedSearchListResponse:
-    enforce_rate_limit(request)
-    items = load_saved_searches_raw()
-    response_items = []
-
-    for item in sorted(items, key=lambda value: value.get("query_original", "").lower()):
-        response_items.append(
-            SavedSearchItem(
-                query_original=item.get("query_original", ""),
-                query_mejorada=item.get("query_mejorada", ""),
-                incluir_palabras=list(item.get("incluir_palabras", [])),
-                modo_inclusion=item.get("modo_inclusion", "all"),
-                excluir_palabras=list(item.get("excluir_palabras", [])),
-                guardada_en=item.get("guardada_en", ""),
-                ultima_revision=item.get("ultima_revision", ""),
-                total_productos=int(item.get("total_productos", 0)),
-                chollos_detectados=int(item.get("chollos_detectados", 0)),
-            )
-        )
-
-    return SavedSearchListResponse(busquedas_guardadas=response_items)
-
-
-@app.post("/review-saved-searches")
-def review_saved_searches_now(request: Request) -> dict[str, Any]:
-    enforce_rate_limit(request)
-    items = review_saved_searches(force=True)
-    return {
-        "message": "Revision completada.",
-        "total_busquedas_guardadas": len(items),
-    }
 
 
 if __name__ == "__main__":
