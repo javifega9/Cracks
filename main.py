@@ -47,6 +47,8 @@ class Product(BaseModel):
     link_original: str | None = None
     es_amazon: bool = False
     es_afiliado_amazon: bool = False
+    categoria_destacada: str | None = None
+    etiqueta: str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -395,69 +397,81 @@ def fallback_top_3(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(products, key=sort_key)[:3]
 
 
-def choose_top_3_with_openai(
-    original_query: str,
-    improved_query: str,
-    average_price: float | None,
+def score_overall_choice(product: dict[str, Any], average_price: float | None) -> tuple[Any, ...]:
+    price = product.get("precio_numerico")
+    amazon_score = 0 if product.get("es_amazon") else 1
+    bargain_score = 0 if product.get("es_chollo") else 1
+    if isinstance(price, (int, float)):
+        distance = abs(price - average_price) if isinstance(average_price, (int, float)) else price
+        return (amazon_score, bargain_score, distance, price)
+    return (amazon_score, bargain_score, float("inf"), float("inf"))
+
+
+def score_value_choice(product: dict[str, Any], average_price: float | None) -> tuple[Any, ...]:
+    price = product.get("precio_numerico")
+    amazon_score = 0 if product.get("es_amazon") else 1
+    bargain_score = 0 if product.get("es_chollo") else 1
+    if isinstance(price, (int, float)):
+        savings = (average_price - price) if isinstance(average_price, (int, float)) else 0
+        return (amazon_score, bargain_score, -savings, price)
+    return (amazon_score, 1, float("inf"), float("inf"))
+
+
+def score_cheapest_choice(product: dict[str, Any]) -> tuple[Any, ...]:
+    price = product.get("precio_numerico")
+    amazon_score = 0 if product.get("es_amazon") else 1
+    if isinstance(price, (int, float)):
+        return (amazon_score, price)
+    return (amazon_score, float("inf"))
+
+
+def label_featured_products(
     products: list[dict[str, Any]],
+    average_price: float | None,
 ) -> list[dict[str, Any]]:
     if not products:
         return []
 
-    client = get_openai_client()
+    available = list(products)
+    featured = []
 
-    simplified_products = []
-    for index, product in enumerate(products):
-        simplified_products.append(
-            {
-                "index": index,
-                "titulo": product["titulo"],
-                "precio": product["precio"],
-                "tienda": product["tienda"],
-                "es_chollo": product.get("es_chollo", False),
-                "es_amazon": product.get("es_amazon", False),
-            }
-        )
+    def take_best(score_fn, category: str, label_fn) -> None:
+        if not available:
+            return
+        best = min(available, key=score_fn)
+        available.remove(best)
+        best["categoria_destacada"] = category
+        best["etiqueta"] = label_fn(best)
+        featured.append(best)
 
-    prompt = f"""
-Eres un asistente que elige las 3 mejores opciones de compra.
+    take_best(
+        lambda product: score_overall_choice(product, average_price),
+        "Mejor opcion",
+        lambda product: "🔥 Mejor oferta" if product.get("es_chollo") else "⭐ Mejor opcion",
+    )
+    take_best(
+        lambda product: score_value_choice(product, average_price),
+        "Mejor calidad-precio",
+        lambda product: "💸 Mas barato que la media"
+        if product.get("es_chollo")
+        else "⚖️ Mejor calidad-precio",
+    )
+    take_best(
+        score_cheapest_choice,
+        "Opcion mas barata",
+        lambda product: "💸 Mas barato que la media"
+        if product.get("es_chollo")
+        else "🟢 Opcion mas barata",
+    )
 
-Debes priorizar:
-- relevancia con la busqueda
-- relacion calidad/precio
-- claridad del resultado
-- si un producto esta marcado como chollo, dale valor extra
+    while len(featured) < 3 and available:
+        extra = min(available, key=lambda product: score_overall_choice(product, average_price))
+        available.remove(extra)
+        extra["categoria_destacada"] = "Opcion destacada"
+        extra["etiqueta"] = "⭐ Seleccion recomendada"
+        featured.append(extra)
 
-Devuelve solo JSON valido con este formato exacto:
-{{"top_indices": [0, 1, 2]}}
-
-Busqueda original: {original_query}
-Busqueda mejorada: {improved_query}
-Precio medio aproximado: {average_price}
-Productos: {json.dumps(simplified_products, ensure_ascii=False)}
-""".strip()
-
-    try:
-        response = client.responses.create(
-            model=OPENAI_MODEL,
-            input=prompt,
-        )
-        data = extract_json(response.output_text or "")
-        indices = data.get("top_indices", [])
-
-        selected = []
-        seen = set()
-        for index in indices:
-            if isinstance(index, int) and 0 <= index < len(products) and index not in seen:
-                selected.append(products[index])
-                seen.add(index)
-
-        if selected:
-            return selected[:3]
-    except Exception:
-        pass
-
-    return fallback_top_3(products)
+    return featured
 
 
 def clean_product(product: dict[str, Any]) -> Product:
@@ -471,6 +485,8 @@ def clean_product(product: dict[str, Any]) -> Product:
         link_original=product.get("link_original"),
         es_amazon=bool(product.get("es_amazon", False)),
         es_afiliado_amazon=bool(product.get("es_afiliado_amazon", False)),
+        categoria_destacada=product.get("categoria_destacada"),
+        etiqueta=product.get("etiqueta"),
     )
 
 
@@ -536,7 +552,8 @@ def run_search_logic(
     products = filter_products_by_title(products, include_words, include_mode, exclude_words)
     products = enrich_products_with_amazon(products)
     average_price = mark_bargains(products)
-    top_3 = choose_top_3_with_openai(query, improved_query, average_price, products)
+    products = sorted(products, key=lambda product: score_overall_choice(product, average_price))
+    top_3 = label_featured_products(products, average_price)
 
     result = SearchResponse(
         query_original=query,
@@ -965,10 +982,24 @@ def build_home_page() -> str:
             letter-spacing: -0.03em;
         }
 
+        .section-intro {
+            color: var(--muted);
+            font-size: 0.98rem;
+            line-height: 1.55;
+            max-width: 720px;
+            margin-top: 8px;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 16px;
+        }
+
+        .featured-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
         }
 
         .saved-grid {
@@ -991,6 +1022,19 @@ def build_home_page() -> str:
         .top-card {
             border-color: rgba(239, 179, 109, 0.95);
             background: linear-gradient(180deg, #fff6eb 0%, #fffdf9 100%);
+        }
+
+        .featured-card {
+            position: relative;
+        }
+
+        .featured-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 24px;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
         }
 
         .badge-row {
@@ -1023,14 +1067,24 @@ def build_home_page() -> str:
         }
 
         .price {
-            font-size: 1.2rem;
+            font-size: 2rem;
             font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1;
         }
 
         .store,
         .saved-meta {
             color: var(--muted);
             margin-bottom: 0;
+        }
+
+        .featured-kicker {
+            color: var(--accent);
+            font-size: 0.86rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
 
         .card a {
@@ -1078,10 +1132,8 @@ def build_home_page() -> str:
         }
 
         .card-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
+            display: grid;
+            gap: 12px;
             margin-top: auto;
         }
 
@@ -1089,18 +1141,22 @@ def build_home_page() -> str:
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 44px;
-            padding: 0 16px;
-            border-radius: 14px;
-            background: var(--primary-soft);
-            border: 1px solid rgba(199, 109, 43, 0.18);
+            width: 100%;
+            min-height: 52px;
+            padding: 0 18px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #ffb34f 0%, #f08a31 100%);
+            border: 1px solid rgba(199, 109, 43, 0.22);
+            color: #4a2107;
             text-decoration: none;
             white-space: nowrap;
+            font-weight: 800;
+            box-shadow: 0 12px 20px rgba(240, 138, 49, 0.20);
         }
 
         .card-link:hover {
             text-decoration: none;
-            background: #ffe8cd;
+            background: linear-gradient(135deg, #ffbf63 0%, #f4933f 100%);
         }
 
         .link-note {
@@ -1138,6 +1194,10 @@ def build_home_page() -> str:
 
             .mini-stats {
                 grid-template-columns: 1fr 1fr;
+            }
+
+            .featured-grid {
+                grid-template-columns: 1fr;
             }
 
             .search-bar {
@@ -1280,16 +1340,15 @@ def build_home_page() -> str:
 
         <section class="section" id="topSection">
             <div class="section-header">
-                <h2>Top 3 mejores opciones</h2>
+                <div>
+                    <h2>3 productos destacados</h2>
+                    <div class="section-intro">
+                        Cracks solo te muestra tres opciones listas para decidir: la mejor opcion general,
+                        la mejor calidad-precio y la mas barata.
+                    </div>
+                </div>
             </div>
-            <div class="grid" id="topGrid"></div>
-        </section>
-
-        <section class="section" id="allSection">
-            <div class="section-header">
-                <h2>Todos los productos encontrados</h2>
-            </div>
-            <div class="grid" id="allGrid"></div>
+            <div class="featured-grid" id="topGrid"></div>
         </section>
 
         <section class="section" id="savedSection" style="display:block;">
@@ -1317,9 +1376,7 @@ def build_home_page() -> str:
         const statusBox = document.getElementById("status");
         const metaBox = document.getElementById("meta");
         const topSection = document.getElementById("topSection");
-        const allSection = document.getElementById("allSection");
         const topGrid = document.getElementById("topGrid");
-        const allGrid = document.getElementById("allGrid");
         const savedGrid = document.getElementById("savedGrid");
         let latestSearchData = null;
 
@@ -1378,8 +1435,8 @@ def build_home_page() -> str:
 
         function renderCard(product, rank) {
             const badges = [];
-            if (rank) {
-                badges.push(`<div class="badge">Top ${rank}</div>`);
+            if (product.etiqueta) {
+                badges.push(`<div class="badge">${escapeHtml(product.etiqueta)}</div>`);
             }
             if (product.es_chollo) {
                 badges.push(`<div class="badge bargain-badge">Chollo</div>`);
@@ -1395,7 +1452,7 @@ def build_home_page() -> str:
                 ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.titulo)}">`
                 : `<div class="product-media-fallback">Vista previa no disponible</div>`;
 
-            const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver producto";
+            const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver oferta";
             const linkNote = product.es_afiliado_amazon
                 ? "Enlace de Amazon con tu tag de afiliado."
                 : product.link_original && product.link_original !== product.link
@@ -1403,10 +1460,11 @@ def build_home_page() -> str:
                     : "Enlace directo al producto encontrado.";
 
             return `
-                <article class="card ${rank ? "top-card" : ""}">
+                <article class="card featured-card ${rank ? "top-card" : ""}">
                     <div class="badge-row">${badges.join("")}</div>
                     <div class="product-media">${imageMarkup}</div>
                     <div class="card-content">
+                        <div class="featured-kicker">${escapeHtml(product.categoria_destacada || `Destacado ${rank}`)}</div>
                         <div class="title">${escapeHtml(product.titulo)}</div>
                         <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
@@ -1468,9 +1526,7 @@ def build_home_page() -> str:
             statusBox.textContent = "Buscando productos...";
             metaBox.style.display = "none";
             topSection.style.display = "none";
-            allSection.style.display = "none";
             topGrid.innerHTML = "";
-            allGrid.innerHTML = "";
 
             try {
                 const params = new URLSearchParams({
@@ -1506,17 +1562,12 @@ def build_home_page() -> str:
                     .map((product, index) => renderCard(product, index + 1))
                     .join("");
 
-                allGrid.innerHTML = data.productos
-                    .map((product) => renderCard(product))
-                    .join("");
-
                 topSection.style.display = data.top_3_mejores_opciones.length ? "block" : "none";
-                allSection.style.display = data.productos.length ? "block" : "none";
 
                 if (!data.productos.length) {
                     statusBox.textContent = "No se encontraron productos para esa busqueda.";
                 } else {
-                    statusBox.textContent = `Busqueda completada. Productos encontrados: ${data.productos.length}`;
+                    statusBox.textContent = `Busqueda completada. Mostrando 3 opciones destacadas para decidir mas rapido.`;
                 }
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
