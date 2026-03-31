@@ -827,90 +827,86 @@ def build_home_page() -> str:
         .wrap {
             width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 28px 0 72px;
+            padding: 28px 0 88px;
         }
 
         .topbar {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            margin-bottom: 22px;
+            justify-content: center;
+            margin-bottom: 24px;
         }
 
         .brand {
             display: flex;
             align-items: center;
-            gap: 14px;
+            justify-content: center;
+            gap: 18px;
+            text-align: left;
         }
 
         .brand-mark {
-            width: 52px;
-            height: 52px;
-            border-radius: 16px;
+            width: 78px;
+            height: 78px;
+            border-radius: 24px;
             display: grid;
             place-items: center;
             color: white;
             font-weight: 800;
-            font-size: 1.25rem;
+            font-size: 2rem;
             background:
                 linear-gradient(135deg, #0c3a59 0%, #1b5f8f 55%, #f0893d 100%);
-            box-shadow: 0 12px 24px rgba(16, 61, 96, 0.24);
+            box-shadow: 0 18px 32px rgba(16, 61, 96, 0.22);
         }
 
         .brand-copy strong {
             display: block;
-            font-size: 1.05rem;
-            letter-spacing: -0.02em;
+            font-size: clamp(3rem, 8vw, 5.4rem);
+            line-height: 0.9;
+            letter-spacing: -0.07em;
+            text-transform: uppercase;
         }
 
         .brand-copy span {
             color: var(--muted);
             font-size: 0.95rem;
-        }
-
-        .topbar-note {
-            color: var(--muted);
-            font-size: 0.95rem;
-            background: rgba(255, 255, 255, 0.58);
-            border: 1px solid var(--line);
-            border-radius: 999px;
-            padding: 10px 14px;
-            backdrop-filter: blur(10px);
+            opacity: 0.78;
+            letter-spacing: 0.01em;
         }
 
         .hero {
             position: relative;
             overflow: hidden;
-            background: linear-gradient(180deg, rgba(255, 254, 251, 0.9) 0%, rgba(255, 250, 243, 0.95) 100%);
-            border: 1px solid var(--line);
-            border-radius: 34px;
-            padding: 34px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(14px);
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            padding: 10px 0 28px;
+            box-shadow: none;
+            min-height: calc(100vh - 140px);
+            display: grid;
+            align-items: center;
         }
 
         .hero::before {
             content: "";
             position: absolute;
-            width: 340px;
-            height: 340px;
-            right: -90px;
-            top: -90px;
+            width: 420px;
+            height: 420px;
+            right: -120px;
+            top: -120px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(14, 73, 115, 0.14) 0%, transparent 65%);
+            background: radial-gradient(circle, rgba(14, 73, 115, 0.1) 0%, transparent 66%);
             pointer-events: none;
         }
 
         .hero::after {
             content: "";
             position: absolute;
-            width: 240px;
-            height: 240px;
-            left: -60px;
-            bottom: -120px;
+            width: 300px;
+            height: 300px;
+            left: -90px;
+            bottom: -140px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(199, 109, 43, 0.12) 0%, transparent 65%);
+            background: radial-gradient(circle, rgba(199, 109, 43, 0.1) 0%, transparent 68%);
             pointer-events: none;
         }
 
@@ -918,88 +914,89 @@ def build_home_page() -> str:
             position: relative;
             z-index: 1;
             display: grid;
-            grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
-            gap: 24px;
-            align-items: start;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 26px;
+            align-items: center;
+            justify-items: center;
+            width: min(980px, 100%);
+            margin: 0 auto;
         }
 
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: var(--accent-soft);
-            color: var(--accent);
-            font-size: 0.86rem;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-            margin-bottom: 16px;
+        .hero-main {
+            width: min(100%, 960px);
+            display: grid;
+            justify-items: center;
+            gap: 24px;
+            text-align: center;
         }
 
         h1 {
-            margin: 0 0 14px;
-            font-size: clamp(2.6rem, 5vw, 4.9rem);
-            line-height: 0.92;
-            letter-spacing: -0.04em;
-            max-width: 700px;
+            margin: 0;
+            font-size: 1px;
+            line-height: 1;
+            opacity: 0;
+            position: absolute;
+            pointer-events: none;
         }
 
         .subtitle {
-            margin: 0 0 22px;
+            margin: 0;
             color: var(--muted);
-            font-size: 1.08rem;
-            line-height: 1.6;
-            max-width: 700px;
+            font-size: 0.98rem;
+            line-height: 1.65;
+            max-width: 760px;
+            opacity: 0.82;
         }
 
         .hero-points {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            margin-bottom: 24px;
+            gap: 14px;
+            width: min(100%, 920px);
         }
 
         .hero-point {
-            background: rgba(255, 255, 255, 0.66);
+            background: rgba(255, 255, 255, 0.78);
             border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 14px 16px;
-            box-shadow: var(--shadow-soft);
+            border-radius: 20px;
+            padding: 16px 18px;
+            box-shadow: 0 12px 24px rgba(31, 27, 22, 0.05);
+            text-align: left;
         }
 
         .hero-point strong {
             display: block;
-            font-size: 0.96rem;
-            margin-bottom: 6px;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
         }
 
         .hero-point span {
             color: var(--muted);
-            font-size: 0.92rem;
+            font-size: 0.88rem;
             line-height: 1.45;
         }
 
         .search-shell {
-            background: rgba(255, 255, 255, 0.72);
+            width: min(100%, 860px);
+            background: rgba(255, 255, 255, 0.9);
             border: 1px solid var(--line);
-            border-radius: 26px;
-            padding: 18px;
-            box-shadow: var(--shadow-soft);
-            backdrop-filter: blur(10px);
+            border-radius: 34px;
+            padding: 22px;
+            box-shadow: 0 26px 70px rgba(31, 27, 22, 0.12);
+            backdrop-filter: blur(16px);
         }
 
         .search-bar {
             display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
         }
 
         .filters {
             display: grid;
             grid-template-columns: 1fr 220px 1fr;
             gap: 12px;
-            margin-top: 12px;
+            margin-top: 16px;
         }
 
         select {
@@ -1007,7 +1004,7 @@ def build_home_page() -> str:
             padding: 16px 18px;
             border-radius: 18px;
             border: 1px solid var(--line);
-            font-size: 1rem;
+            font-size: 0.98rem;
             outline: none;
             background: rgba(255, 255, 255, 0.96);
         }
@@ -1019,10 +1016,10 @@ def build_home_page() -> str:
 
         input[type="text"] {
             width: 100%;
-            padding: 16px 18px;
-            border-radius: 18px;
+            padding: 20px 22px;
+            border-radius: 22px;
             border: 1px solid var(--line);
-            font-size: 1rem;
+            font-size: 1.08rem;
             outline: none;
             background: rgba(255, 255, 255, 0.96);
         }
@@ -1034,19 +1031,20 @@ def build_home_page() -> str:
 
         button {
             border: 0;
-            border-radius: 18px;
-            padding: 0 22px;
+            border-radius: 20px;
+            padding: 0 24px;
             font-size: 1rem;
             font-weight: 700;
             cursor: pointer;
-            min-height: 56px;
+            min-height: 62px;
             transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
 
         .primary-button {
             background: linear-gradient(135deg, var(--primary) 0%, #e88d45 100%);
             color: white;
-            box-shadow: 0 14px 24px rgba(199, 109, 43, 0.22);
+            box-shadow: 0 18px 30px rgba(199, 109, 43, 0.24);
+            min-width: 170px;
         }
 
         .primary-button:hover {
@@ -1065,11 +1063,19 @@ def build_home_page() -> str:
             transform: translateY(-1px);
         }
 
+        .search-utility-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
         .examples {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 16px;
         }
 
         .example-chip {
@@ -1112,71 +1118,8 @@ def build_home_page() -> str:
             color: #8a4416;
         }
 
-        .hero-side {
-            display: grid;
-            gap: 14px;
-        }
-
-        .info-card {
-            background: linear-gradient(180deg, rgba(15, 47, 74, 0.96) 0%, rgba(23, 71, 106, 0.94) 100%);
-            color: white;
-            border-radius: 28px;
-            padding: 24px;
-            box-shadow: 0 20px 46px rgba(16, 61, 96, 0.22);
-        }
-
-        .info-card small {
-            display: inline-block;
-            margin-bottom: 12px;
-            padding: 7px 10px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.12);
-            font-weight: 700;
-            letter-spacing: 0.01em;
-        }
-
-        .info-card h3 {
-            margin: 0 0 10px;
-            font-size: 1.45rem;
-            letter-spacing: -0.03em;
-        }
-
-        .info-card p {
-            margin: 0;
-            color: rgba(255, 255, 255, 0.78);
-            line-height: 1.6;
-            font-size: 0.97rem;
-        }
-
-        .mini-stats {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .mini-stat {
-            background: rgba(255, 255, 255, 0.76);
-            border: 1px solid var(--line);
-            border-radius: 22px;
-            padding: 18px;
-            box-shadow: var(--shadow-soft);
-        }
-
-        .mini-stat strong {
-            display: block;
-            font-size: 1.45rem;
-            letter-spacing: -0.03em;
-            margin-bottom: 6px;
-        }
-
-        .mini-stat span {
-            color: var(--muted);
-            font-size: 0.92rem;
-            line-height: 1.45;
-        }
-
         .section {
-            margin-top: 30px;
+            margin-top: 72px;
             display: none;
         }
 
@@ -1510,20 +1453,21 @@ def build_home_page() -> str:
 
         @media (max-width: 860px) {
             .topbar {
-                flex-direction: column;
-                align-items: flex-start;
+                margin-bottom: 18px;
             }
 
-            .hero-grid {
-                grid-template-columns: 1fr;
+            .brand {
+                gap: 14px;
             }
 
-            .hero-points {
-                grid-template-columns: 1fr;
+            .brand-mark {
+                width: 62px;
+                height: 62px;
+                font-size: 1.6rem;
             }
 
-            .mini-stats {
-                grid-template-columns: 1fr 1fr;
+            .brand-copy strong {
+                font-size: clamp(2.6rem, 12vw, 4rem);
             }
 
             .featured-grid {
@@ -1534,7 +1478,25 @@ def build_home_page() -> str:
                 grid-template-columns: 1fr;
             }
 
+            .search-shell {
+                width: 100%;
+                padding: 18px;
+            }
+
             .filters {
+                grid-template-columns: 1fr;
+            }
+
+            .search-utility-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .examples {
+                justify-content: center;
+            }
+
+            .hero-points {
                 grid-template-columns: 1fr;
             }
 
@@ -1555,16 +1517,12 @@ def build_home_page() -> str:
             }
 
             .hero {
-                padding: 22px;
-                border-radius: 26px;
+                min-height: auto;
+                padding: 0 0 18px;
             }
 
-            .mini-stats {
-                grid-template-columns: 1fr;
-            }
-
-            h1 {
-                font-size: clamp(2.3rem, 10vw, 3.4rem);
+            .wrap {
+                padding-bottom: 72px;
             }
         }
     </style>
@@ -1575,44 +1533,20 @@ def build_home_page() -> str:
             <div class="brand">
                 <div class="brand-mark">C</div>
                 <div class="brand-copy">
-                    <strong>Cracks</strong>
-                    <span>Buscador inteligente de productos y ofertas</span>
+                    <strong>CRACKS</strong>
+                    <span>Encuentra ofertas claras y decide rapido</span>
                 </div>
             </div>
-            <div class="topbar-note">Google Shopping + OpenAI + filtros utiles en una sola pantalla</div>
         </div>
 
         <section class="hero">
             <div class="hero-grid">
-                <div>
-                    <div class="eyebrow">Comparador agil para encontrar producto, precio y tienda</div>
-                    <h1>Encuentra compras inteligentes sin perder tiempo.</h1>
-                    <p class="subtitle">
-                        Cracks busca productos en Google Shopping, mejora la consulta con OpenAI,
-                        aplica filtros por palabras, detecta posibles chollos y te deja guardar tus
-                        busquedas favoritas en el navegador para volver a revisarlas cuando quieras.
-                    </p>
-
-                    <div class="hero-points">
-                        <div class="hero-point">
-                            <strong>Busqueda afinada</strong>
-                            <span>Incluye o excluye palabras del titulo para quitar ruido y ver solo lo que importa.</span>
-                        </div>
-                        <div class="hero-point">
-                            <strong>Mejores opciones</strong>
-                            <span>Top 3 priorizado por relevancia, claridad y relacion calidad precio.</span>
-                        </div>
-                        <div class="hero-point">
-                            <strong>Guardado simple</strong>
-                            <span>Tus busquedas se quedan en este navegador, ideal para Render gratis.</span>
-                        </div>
-                    </div>
-
+                <div class="hero-main">
+                    <h1>CRACKS</h1>
                     <div class="search-shell">
                         <div class="search-bar">
                             <input id="query" type="text" placeholder="Ejemplo: iphone 15, cafetera nespresso, portatil lenovo barato">
                             <button id="searchButton" class="primary-button">Buscar</button>
-                            <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
                         </div>
 
                         <div class="filters">
@@ -1624,44 +1558,35 @@ def build_home_page() -> str:
                             <input id="excludeWords" type="text" placeholder="Excluir palabras. Ejemplo: funda, reacondicionado">
                         </div>
 
-                        <div class="examples">
-                            <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
-                            <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
-                            <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
+                        <div class="search-utility-row">
+                            <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
+                            <div class="examples">
+                                <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
+                                <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
+                                <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
+                            </div>
                         </div>
 
                         <div class="status" id="status">Listo para buscar.</div>
                         <div class="meta" id="meta"></div>
                     </div>
-                </div>
 
-                <div class="hero-side">
-                    <div class="info-card">
-                        <small>Cracks selecciona mejor</small>
-                        <h3>Una portada de comparador, no de experimento.</h3>
-                        <p>
-                            Pensada para abrir, escribir una busqueda y encontrar opciones claras en segundos.
-                            Sin menus confusos, sin pasos innecesarios y con una lectura muy rapida de precio,
-                            tienda y oportunidad.
-                        </p>
-                    </div>
+                    <p class="subtitle">
+                        Busca productos, filtra ruido y encuentra tres opciones claras para decidir en segundos.
+                    </p>
 
-                    <div class="mini-stats">
-                        <div class="mini-stat">
-                            <strong>Top 3</strong>
-                            <span>Las mejores opciones aparecen destacadas para decidir mas rapido.</span>
+                    <div class="hero-points">
+                        <div class="hero-point">
+                            <strong>Busqueda afinada</strong>
+                            <span>Incluye y excluye palabras para eliminar resultados irrelevantes.</span>
                         </div>
-                        <div class="mini-stat">
-                            <strong>Chollos</strong>
-                            <span>Se marcan las ofertas que caen claramente por debajo del precio medio.</span>
+                        <div class="hero-point">
+                            <strong>Top 3 util</strong>
+                            <span>Cracks destaca mejor opcion, calidad-precio y la mas barata.</span>
                         </div>
-                        <div class="mini-stat">
-                            <strong>Filtros</strong>
-                            <span>Controla el titulo del producto con incluir, excluir y modo flexible.</span>
-                        </div>
-                        <div class="mini-stat">
-                            <strong>Gratis</strong>
-                            <span>Las busquedas guardadas viven en tu navegador, perfecto para este despliegue.</span>
+                        <div class="hero-point">
+                            <strong>Guardado simple</strong>
+                            <span>Guarda tus busquedas en este navegador y vuelve cuando quieras.</span>
                         </div>
                     </div>
                 </div>
