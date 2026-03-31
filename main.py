@@ -9,6 +9,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
@@ -37,6 +38,14 @@ app = FastAPI(
     description="Aplicacion web para buscar ofertas de productos con FastAPI, SerpAPI y OpenAI.",
     version="1.0.0",
 )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_exception(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor. Intenta de nuevo en unos segundos."},
+    )
 
 
 class Product(BaseModel):
@@ -1674,6 +1683,19 @@ def build_home_page() -> str:
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
         }
 
+        async function readJsonResponse(response) {
+            const rawText = await response.text();
+
+            try {
+                return rawText ? JSON.parse(rawText) : {};
+            } catch (error) {
+                if (!response.ok) {
+                    throw new Error("Error interno del servidor. Intenta de nuevo en unos segundos.");
+                }
+                throw new Error("La respuesta del servidor no tiene un formato valido.");
+            }
+        }
+
         function upsertLocalSavedSearch(item) {
             const items = getLocalSavedSearches();
             const key = JSON.stringify([
@@ -1844,7 +1866,7 @@ def build_home_page() -> str:
                     exclude_words: excludeWords
                 });
                 const response = await fetch(`/search?${params.toString()}`);
-                const data = await response.json();
+                const data = await readJsonResponse(response);
 
                 if (!response.ok) {
                     throw new Error(data.detail || "Ha ocurrido un error.");
@@ -1916,7 +1938,7 @@ def build_home_page() -> str:
                         exclude_words: excludeWords
                     });
                     const response = await fetch(`/search?${params.toString()}`);
-                    data = await response.json();
+                    data = await readJsonResponse(response);
 
                     if (!response.ok) {
                         throw new Error(data.detail || "No se pudo guardar la busqueda.");
@@ -1959,7 +1981,7 @@ def build_home_page() -> str:
                         exclude_words: (item.excluir_palabras || []).join(", ")
                     });
                     const response = await fetch(`/search?${params.toString()}`);
-                    const data = await response.json();
+                    const data = await readJsonResponse(response);
 
                     if (!response.ok) {
                         throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
