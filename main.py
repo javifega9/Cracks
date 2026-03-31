@@ -49,6 +49,7 @@ class Product(BaseModel):
     es_afiliado_amazon: bool = False
     categoria_destacada: str | None = None
     etiqueta: str | None = None
+    explicacion: str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -446,29 +447,25 @@ def label_featured_products(
 
     take_best(
         lambda product: score_overall_choice(product, average_price),
-        "Mejor opcion",
-        lambda product: "🔥 Mejor oferta" if product.get("es_chollo") else "⭐ Mejor opcion",
+        "Mejor opción",
+        lambda product: "🔥 Mejor opción",
     )
     take_best(
         lambda product: score_value_choice(product, average_price),
         "Mejor calidad-precio",
-        lambda product: "💸 Mas barato que la media"
-        if product.get("es_chollo")
-        else "⚖️ Mejor calidad-precio",
+        lambda product: "💸 Mejor calidad-precio",
     )
     take_best(
         score_cheapest_choice,
-        "Opcion mas barata",
-        lambda product: "💸 Mas barato que la media"
-        if product.get("es_chollo")
-        else "🟢 Opcion mas barata",
+        "Opción más barata",
+        lambda product: "🟢 Más barato",
     )
 
     while len(featured) < 3 and available:
         extra = min(available, key=lambda product: score_overall_choice(product, average_price))
         available.remove(extra)
-        extra["categoria_destacada"] = "Opcion destacada"
-        extra["etiqueta"] = "⭐ Seleccion recomendada"
+        extra["categoria_destacada"] = "Opción destacada"
+        extra["etiqueta"] = "🔥 Mejor opción"
         featured.append(extra)
 
     return featured
@@ -487,6 +484,7 @@ def clean_product(product: dict[str, Any]) -> Product:
         es_afiliado_amazon=bool(product.get("es_afiliado_amazon", False)),
         categoria_destacada=product.get("categoria_destacada"),
         etiqueta=product.get("etiqueta"),
+        explicacion=product.get("explicacion"),
     )
 
 
@@ -533,6 +531,117 @@ def set_cached_search_result(cache_key: str, result: SearchResponse) -> None:
         }
 
 
+def fallback_explanation_for_product(product: dict[str, Any], average_price: float | None) -> str:
+    category = product.get("categoria_destacada")
+    is_bargain = bool(product.get("es_chollo"))
+    is_amazon = bool(product.get("es_amazon"))
+    price = product.get("precio_numerico")
+
+    if category == "Mejor opción":
+        if is_amazon and is_bargain:
+            return "Equilibrio ideal entre ahorro, confianza y compra rápida."
+        if is_amazon:
+            return "La opción más sólida para comprar rápido en Amazon."
+        return "La alternativa más equilibrada para decidir sin complicarte."
+
+    if category == "Mejor calidad-precio":
+        if is_bargain:
+            return "Ofrece mucho por menos y cae bajo la media."
+        return "Buen equilibrio entre coste, valor y compra sencilla."
+
+    if category == "Opción más barata":
+        if is_bargain:
+            return "La opción más barata y por debajo del precio medio."
+        return "La opción más barata dentro de esta comparativa."
+
+    if isinstance(price, (int, float)) and isinstance(average_price, (int, float)) and price < average_price:
+        return "Precio atractivo frente al promedio de esta búsqueda."
+
+    return "Selección pensada para decidir y hacer clic rápido."
+
+
+def enrich_featured_products_with_openai(
+    products: list[dict[str, Any]],
+    average_price: float | None,
+) -> list[dict[str, Any]]:
+    if not products:
+        return products
+
+    payload = []
+    for index, product in enumerate(products):
+        payload.append(
+            {
+                "index": index,
+                "titulo": product.get("titulo"),
+                "precio": product.get("precio"),
+                "categoria_destacada": product.get("categoria_destacada"),
+                "etiqueta": product.get("etiqueta"),
+                "es_chollo": product.get("es_chollo"),
+                "es_amazon": product.get("es_amazon"),
+            }
+        )
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "explicacion": {"type": "string"},
+                    },
+                    "required": ["index", "explicacion"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["items"],
+        "additionalProperties": False,
+    }
+
+    prompt = f"""
+Eres un asistente de ecommerce orientado a conversion.
+
+Debes escribir una explicacion muy corta para cada producto destacado.
+
+Reglas:
+- Maximo 10 palabras por explicacion.
+- Debe sonar util para decidir rapido.
+- No inventes especificaciones tecnicas.
+- Enfocate en precio, valor, ahorro o conveniencia.
+- Devuelve solo JSON valido.
+- Formato exacto:
+  {{"items":[{{"index":0,"explicacion":"texto"}}]}}
+
+Precio medio aproximado: {average_price}
+Productos destacados: {json.dumps(payload, ensure_ascii=False)}
+""".strip()
+
+    try:
+        client = get_openai_client()
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            input=prompt,
+        )
+        data = extract_json(response.output_text or "")
+        items = data.get("items", [])
+        for item in items:
+            index = item.get("index")
+            explanation = str(item.get("explicacion", "")).strip()
+            if isinstance(index, int) and 0 <= index < len(products) and explanation:
+                products[index]["explicacion"] = explanation
+    except Exception:
+        pass
+
+    for product in products:
+        if not product.get("explicacion"):
+            product["explicacion"] = fallback_explanation_for_product(product, average_price)
+
+    return products
+
+
 def run_search_logic(
     query: str,
     include_words: list[str] | None = None,
@@ -554,6 +663,7 @@ def run_search_logic(
     average_price = mark_bargains(products)
     products = sorted(products, key=lambda product: score_overall_choice(product, average_price))
     top_3 = label_featured_products(products, average_price)
+    top_3 = enrich_featured_products_with_openai(top_3, average_price)
 
     result = SearchResponse(
         query_original=query,
@@ -1187,6 +1297,16 @@ def build_home_page() -> str:
             margin-bottom: 0;
         }
 
+        .product-explanation {
+            color: var(--text);
+            font-size: 0.96rem;
+            line-height: 1.55;
+            background: rgba(16, 61, 96, 0.05);
+            border: 1px solid rgba(16, 61, 96, 0.08);
+            border-radius: 16px;
+            padding: 12px 14px;
+        }
+
         .featured-kicker {
             color: var(--accent);
             font-size: 0.86rem;
@@ -1470,7 +1590,7 @@ def build_home_page() -> str:
         </section>
 
         <div class="status" style="margin-top: 22px;">
-            Transparencia: algunos enlaces pueden ser enlaces de afiliado. Si compras a traves de ellos, Cracks podria recibir una comision sin coste extra para ti.
+            Como afiliado de Amazon, obtengo ingresos por compras adscritas
         </div>
     </div>
 
@@ -1551,7 +1671,7 @@ def build_home_page() -> str:
                 badges.push(`<div class="badge">${escapeHtml(product.etiqueta)}</div>`);
             }
             if (product.es_chollo) {
-                badges.push(`<div class="badge bargain-badge">Chollo</div>`);
+                badges.push(`<div class="badge bargain-badge">🔥 Chollo detectado</div>`);
             }
             if (product.es_amazon) {
                 badges.push(`<div class="badge">Amazon</div>`);
@@ -1564,7 +1684,8 @@ def build_home_page() -> str:
                 ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.titulo)}">`
                 : `<div class="product-media-fallback">Vista previa no disponible</div>`;
 
-            const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver oferta";
+            const explanation = product.explicacion || "Selección pensada para decidir rápido.";
+            const linkLabel = product.es_amazon ? "🟡 Ver en Amazon" : "🟡 Ver oferta";
             const linkNote = product.es_afiliado_amazon
                 ? "Enlace de Amazon con tu tag de afiliado."
                 : product.link_original && product.link_original !== product.link
@@ -1580,10 +1701,11 @@ def build_home_page() -> str:
                         <div class="title">${escapeHtml(product.titulo)}</div>
                         <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                        <div class="product-explanation">${escapeHtml(explanation)}</div>
                     </div>
                     <div class="card-footer">
-                        <div class="link-note">${escapeHtml(linkNote)}</div>
                         <a class="card-link" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>
+                        <div class="link-note">${escapeHtml(linkNote)}</div>
                     </div>
                 </article>
             `;
@@ -1624,14 +1746,14 @@ def build_home_page() -> str:
                 <div class="spotlight-label">Recomendacion principal</div>
                 <div class="spotlight-title">${escapeHtml(product.titulo)}</div>
                 <div class="spotlight-copy">
-                    ${escapeHtml(product.etiqueta || "La seleccion mas equilibrada para decidir rapido.")} ${escapeHtml(product.es_amazon ? "Prioriza Amazon para maximizar conversion." : "")}
+                    ${escapeHtml(product.explicacion || product.etiqueta || "La seleccion mas equilibrada para decidir rapido.")}
                 </div>
                 <div class="spotlight-actions">
                     <div>
                         <div class="spotlight-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="link-note" style="color: rgba(255,255,255,0.72);">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
                     </div>
-                    <a class="spotlight-button" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">Ver en Amazon</a>
+                    <a class="spotlight-button" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(product.es_amazon ? "🟡 Ver en Amazon" : "🟡 Ver oferta")}</a>
                 </div>
             `;
             spotlightBox.style.display = "block";
