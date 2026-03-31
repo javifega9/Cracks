@@ -11,6 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -38,6 +39,14 @@ app = FastAPI(
     description="Aplicacion web para buscar ofertas de productos con FastAPI, SerpAPI y OpenAI.",
     version="1.0.0",
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.exception_handler(Exception)
@@ -130,8 +139,6 @@ def extract_json(text: str) -> dict[str, Any]:
 
 
 def improve_query_with_openai(query: str) -> str:
-    client = get_openai_client()
-
     prompt = f"""
 Eres un asistente que mejora busquedas de productos para Google Shopping.
 
@@ -148,6 +155,7 @@ Busqueda del usuario: {query}
 """.strip()
 
     try:
+        client = get_openai_client()
         response = client.responses.create(
             model=OPENAI_MODEL,
             input=prompt,
@@ -157,6 +165,32 @@ Busqueda del usuario: {query}
         return improved_query or query
     except Exception:
         return query
+
+
+def build_serpapi_error_detail(response: requests.Response | None) -> str:
+    if response is None:
+        return "Error al consultar SerpAPI."
+
+    raw_text = response.text.strip()
+    message = raw_text
+
+    try:
+        payload = response.json()
+        if isinstance(payload, dict):
+            message = str(payload.get("error") or payload.get("message") or raw_text).strip()
+    except ValueError:
+        pass
+
+    normalized = message.lower()
+    if response.status_code in {401, 403}:
+        return "SerpAPI ha rechazado la clave API. Revisa SERPAPI_KEY."
+    if response.status_code == 429 or "limit" in normalized or "quota" in normalized:
+        return "Has alcanzado el limite de busquedas de SerpAPI."
+
+    if message:
+        return f"Error al consultar SerpAPI: {message}"
+
+    return "Error al consultar SerpAPI."
 
 
 def extract_numeric_price(price_text: str | None) -> float | None:
@@ -258,9 +292,25 @@ def search_google_web(query: str) -> dict[str, Any]:
         "num": 5,
     }
 
-    response = requests.get(SERPAPI_URL, params=params, timeout=30)
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = requests.get(SERPAPI_URL, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=build_serpapi_error_detail(getattr(exc, "response", None)),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="SerpAPI ha devuelto una respuesta no valida.",
+        ) from exc
+
+    if isinstance(data, dict) and data.get("error"):
+        raise HTTPException(status_code=502, detail=build_serpapi_error_detail(response))
+
+    return data
 
 
 def find_amazon_link_for_title(title: str) -> str | None:
@@ -287,6 +337,8 @@ def find_amazon_link_for_title(title: str) -> str | None:
                     final_link = build_amazon_affiliate_link(link)
                     AMAZON_CACHE[cache_key] = final_link
                     return final_link
+    except HTTPException:
+        pass
     except requests.RequestException:
         pass
 
@@ -366,10 +418,20 @@ def search_google_shopping(query: str) -> list[dict[str, Any]]:
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=502,
-            detail="Error al consultar SerpAPI",
+            detail=build_serpapi_error_detail(getattr(exc, "response", None)),
         ) from exc
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="SerpAPI ha devuelto una respuesta no valida.",
+        ) from exc
+
+    if isinstance(data, dict) and data.get("error"):
+        raise HTTPException(status_code=502, detail=build_serpapi_error_detail(response))
+
     raw_products = data.get("shopping_results", [])
 
     products = []
