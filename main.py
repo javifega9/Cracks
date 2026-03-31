@@ -538,16 +538,22 @@ def build_home_page() -> str:
     <title>Cracks</title>
     <style>
         :root {
-            --panel: #fffdf9;
-            --text: #1f2937;
-            --muted: #6b7280;
-            --line: #e7dfd3;
-            --primary: #c46b2d;
-            --primary-dark: #9d4f18;
-            --highlight: #fff1dc;
+            --bg: #f4efe7;
+            --panel: rgba(255, 252, 247, 0.82);
+            --panel-strong: #fffdf9;
+            --text: #18202b;
+            --muted: #677283;
+            --line: rgba(142, 111, 73, 0.18);
+            --primary: #c76d2b;
+            --primary-dark: #9c4f18;
+            --primary-soft: #fff0df;
+            --accent: #103d60;
+            --accent-soft: #e8f2fb;
+            --highlight: #fff4e7;
             --soft-green: #e8f7ea;
             --soft-green-border: #9fd2a7;
-            --shadow: 0 18px 40px rgba(58, 36, 18, 0.10);
+            --shadow: 0 24px 60px rgba(31, 27, 22, 0.10);
+            --shadow-soft: 0 16px 34px rgba(31, 27, 22, 0.06);
         }
 
         * {
@@ -559,37 +565,175 @@ def build_home_page() -> str:
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
             background:
-                radial-gradient(circle at top left, #fff4df 0, transparent 30%),
-                linear-gradient(180deg, #f8f4ed 0%, #f2ede5 100%);
+                radial-gradient(circle at top left, rgba(255, 214, 171, 0.45) 0, transparent 28%),
+                radial-gradient(circle at 85% 10%, rgba(188, 219, 255, 0.55) 0, transparent 22%),
+                linear-gradient(180deg, #fbf7f2 0%, var(--bg) 100%);
             min-height: 100vh;
         }
 
         .wrap {
-            width: min(1120px, calc(100% - 32px));
+            width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 40px 0 60px;
+            padding: 28px 0 72px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-mark {
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            color: white;
+            font-weight: 800;
+            font-size: 1.25rem;
+            background:
+                linear-gradient(135deg, #0c3a59 0%, #1b5f8f 55%, #f0893d 100%);
+            box-shadow: 0 12px 24px rgba(16, 61, 96, 0.24);
+        }
+
+        .brand-copy strong {
+            display: block;
+            font-size: 1.05rem;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-copy span {
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .topbar-note {
+            color: var(--muted);
+            font-size: 0.95rem;
+            background: rgba(255, 255, 255, 0.58);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+            backdrop-filter: blur(10px);
         }
 
         .hero {
-            background: var(--panel);
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(255, 254, 251, 0.9) 0%, rgba(255, 250, 243, 0.95) 100%);
             border: 1px solid var(--line);
-            border-radius: 28px;
-            padding: 32px;
+            border-radius: 34px;
+            padding: 34px;
             box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            width: 340px;
+            height: 340px;
+            right: -90px;
+            top: -90px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(14, 73, 115, 0.14) 0%, transparent 65%);
+            pointer-events: none;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 240px;
+            height: 240px;
+            left: -60px;
+            bottom: -120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(199, 109, 43, 0.12) 0%, transparent 65%);
+            pointer-events: none;
+        }
+
+        .hero-grid {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.86rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            margin-bottom: 16px;
         }
 
         h1 {
-            margin: 0 0 10px;
-            font-size: clamp(2rem, 5vw, 3.6rem);
-            line-height: 1;
+            margin: 0 0 14px;
+            font-size: clamp(2.6rem, 5vw, 4.9rem);
+            line-height: 0.92;
             letter-spacing: -0.04em;
+            max-width: 700px;
         }
 
         .subtitle {
-            margin: 0 0 24px;
+            margin: 0 0 22px;
             color: var(--muted);
-            font-size: 1.05rem;
-            max-width: 780px;
+            font-size: 1.08rem;
+            line-height: 1.6;
+            max-width: 700px;
+        }
+
+        .hero-points {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .hero-point {
+            background: rgba(255, 255, 255, 0.66);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .hero-point strong {
+            display: block;
+            font-size: 0.96rem;
+            margin-bottom: 6px;
+        }
+
+        .hero-point span {
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+
+        .search-shell {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            padding: 18px;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(10px);
         }
 
         .search-bar {
@@ -608,11 +752,11 @@ def build_home_page() -> str:
         select {
             width: 100%;
             padding: 16px 18px;
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--line);
             font-size: 1rem;
             outline: none;
-            background: #ffffff;
+            background: rgba(255, 255, 255, 0.96);
         }
 
         select:focus {
@@ -623,11 +767,11 @@ def build_home_page() -> str:
         input[type="text"] {
             width: 100%;
             padding: 16px 18px;
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--line);
             font-size: 1rem;
             outline: none;
-            background: #ffffff;
+            background: rgba(255, 255, 255, 0.96);
         }
 
         input[type="text"]:focus {
@@ -637,31 +781,35 @@ def build_home_page() -> str:
 
         button {
             border: 0;
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 0 22px;
             font-size: 1rem;
             font-weight: 700;
             cursor: pointer;
             min-height: 56px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
 
         .primary-button {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, #e88d45 100%);
             color: white;
+            box-shadow: 0 14px 24px rgba(199, 109, 43, 0.22);
         }
 
         .primary-button:hover {
-            background: var(--primary-dark);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, #d97831 100%);
+            transform: translateY(-1px);
         }
 
         .secondary-button {
-            background: white;
+            background: rgba(255, 255, 255, 0.92);
             color: var(--text);
             border: 1px solid var(--line);
         }
 
         .secondary-button:hover {
-            background: #fbf7f1;
+            background: white;
+            transform: translateY(-1px);
         }
 
         .examples {
@@ -673,36 +821,109 @@ def build_home_page() -> str:
 
         .example-chip {
             border: 1px solid var(--line);
-            background: #fff;
+            background: rgba(255, 255, 255, 0.9);
             color: var(--text);
             padding: 10px 14px;
             border-radius: 999px;
             cursor: pointer;
             font-size: 0.95rem;
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        }
+
+        .example-chip:hover {
+            transform: translateY(-1px);
+            background: white;
+            border-color: rgba(199, 109, 43, 0.28);
         }
 
         .status {
             margin-top: 18px;
             color: var(--muted);
             min-height: 24px;
+            font-size: 0.95rem;
         }
 
         .meta {
             display: none;
             margin-top: 24px;
-            background: var(--highlight);
+            background: linear-gradient(180deg, var(--highlight) 0%, #fffaf2 100%);
             border: 1px solid #f2d5a4;
-            border-radius: 18px;
-            padding: 18px;
+            border-radius: 22px;
+            padding: 18px 20px;
+            box-shadow: var(--shadow-soft);
         }
 
         .meta strong {
             display: block;
             margin-bottom: 8px;
+            color: #8a4416;
+        }
+
+        .hero-side {
+            display: grid;
+            gap: 14px;
+        }
+
+        .info-card {
+            background: linear-gradient(180deg, rgba(15, 47, 74, 0.96) 0%, rgba(23, 71, 106, 0.94) 100%);
+            color: white;
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: 0 20px 46px rgba(16, 61, 96, 0.22);
+        }
+
+        .info-card small {
+            display: inline-block;
+            margin-bottom: 12px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.12);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .info-card h3 {
+            margin: 0 0 10px;
+            font-size: 1.45rem;
+            letter-spacing: -0.03em;
+        }
+
+        .info-card p {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.78);
+            line-height: 1.6;
+            font-size: 0.97rem;
+        }
+
+        .mini-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .mini-stat {
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .mini-stat strong {
+            display: block;
+            font-size: 1.45rem;
+            letter-spacing: -0.03em;
+            margin-bottom: 6px;
+        }
+
+        .mini-stat span {
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
         }
 
         .section {
-            margin-top: 28px;
+            margin-top: 30px;
             display: none;
         }
 
@@ -716,7 +937,8 @@ def build_home_page() -> str:
 
         .section h2 {
             margin: 0;
-            font-size: 1.35rem;
+            font-size: 1.45rem;
+            letter-spacing: -0.03em;
         }
 
         .grid {
@@ -732,16 +954,16 @@ def build_home_page() -> str:
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.94);
+            background: rgba(255, 255, 255, 0.96);
             border: 1px solid var(--line);
-            border-radius: 22px;
-            padding: 18px;
-            box-shadow: var(--shadow);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: var(--shadow-soft);
         }
 
         .top-card {
-            border-color: #efb36d;
-            background: linear-gradient(180deg, #fff8ef 0%, #fffdf9 100%);
+            border-color: rgba(239, 179, 109, 0.95);
+            background: linear-gradient(180deg, #fff6eb 0%, #fffdf9 100%);
         }
 
         .badge-row {
@@ -768,13 +990,14 @@ def build_home_page() -> str:
         }
 
         .title {
-            font-size: 1rem;
+            font-size: 1.02rem;
             font-weight: 700;
             margin-bottom: 10px;
+            line-height: 1.45;
         }
 
         .price {
-            font-size: 1.15rem;
+            font-size: 1.2rem;
             font-weight: 800;
             margin-bottom: 6px;
         }
@@ -809,6 +1032,23 @@ def build_home_page() -> str:
         }
 
         @media (max-width: 860px) {
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .hero-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-points {
+                grid-template-columns: 1fr;
+            }
+
+            .mini-stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
             .search-bar {
                 grid-template-columns: 1fr;
             }
@@ -826,41 +1066,125 @@ def build_home_page() -> str:
                 flex-direction: column;
             }
         }
+
+        @media (max-width: 640px) {
+            .wrap {
+                width: min(100% - 18px, 1180px);
+                padding-top: 18px;
+            }
+
+            .hero {
+                padding: 22px;
+                border-radius: 26px;
+            }
+
+            .mini-stats {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: clamp(2.3rem, 10vw, 3.4rem);
+            }
+        }
     </style>
 </head>
 <body>
     <div class="wrap">
+        <div class="topbar">
+            <div class="brand">
+                <div class="brand-mark">C</div>
+                <div class="brand-copy">
+                    <strong>Cracks</strong>
+                    <span>Buscador inteligente de productos y ofertas</span>
+                </div>
+            </div>
+            <div class="topbar-note">Google Shopping + OpenAI + filtros utiles en una sola pantalla</div>
+        </div>
+
         <section class="hero">
-            <h1>Cracks</h1>
-            <p class="subtitle">
-                Escribe lo que quieres comprar y la herramienta buscara productos en Google Shopping,
-                mejorara la consulta con OpenAI, detectara posibles chollos y te dejara guardar busquedas
-                en tu navegador para revisarlas facilmente incluso usando Render gratis.
-            </p>
+            <div class="hero-grid">
+                <div>
+                    <div class="eyebrow">Comparador agil para encontrar producto, precio y tienda</div>
+                    <h1>Encuentra compras inteligentes sin perder tiempo.</h1>
+                    <p class="subtitle">
+                        Cracks busca productos en Google Shopping, mejora la consulta con OpenAI,
+                        aplica filtros por palabras, detecta posibles chollos y te deja guardar tus
+                        busquedas favoritas en el navegador para volver a revisarlas cuando quieras.
+                    </p>
 
-            <div class="search-bar">
-                <input id="query" type="text" placeholder="Ejemplo: iphone 15, cafetera nespresso, portatil lenovo barato">
-                <button id="searchButton" class="primary-button">Buscar</button>
-                <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
+                    <div class="hero-points">
+                        <div class="hero-point">
+                            <strong>Busqueda afinada</strong>
+                            <span>Incluye o excluye palabras del titulo para quitar ruido y ver solo lo que importa.</span>
+                        </div>
+                        <div class="hero-point">
+                            <strong>Mejores opciones</strong>
+                            <span>Top 3 priorizado por relevancia, claridad y relacion calidad precio.</span>
+                        </div>
+                        <div class="hero-point">
+                            <strong>Guardado simple</strong>
+                            <span>Tus busquedas se quedan en este navegador, ideal para Render gratis.</span>
+                        </div>
+                    </div>
+
+                    <div class="search-shell">
+                        <div class="search-bar">
+                            <input id="query" type="text" placeholder="Ejemplo: iphone 15, cafetera nespresso, portatil lenovo barato">
+                            <button id="searchButton" class="primary-button">Buscar</button>
+                            <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
+                        </div>
+
+                        <div class="filters">
+                            <input id="includeWords" type="text" placeholder="Incluir palabras. Ejemplo: 128gb, pro">
+                            <select id="includeMode">
+                                <option value="all">Debe tener todas</option>
+                                <option value="any">Puede tener cualquiera</option>
+                            </select>
+                            <input id="excludeWords" type="text" placeholder="Excluir palabras. Ejemplo: funda, reacondicionado">
+                        </div>
+
+                        <div class="examples">
+                            <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
+                            <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
+                            <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
+                        </div>
+
+                        <div class="status" id="status">Listo para buscar.</div>
+                        <div class="meta" id="meta"></div>
+                    </div>
+                </div>
+
+                <div class="hero-side">
+                    <div class="info-card">
+                        <small>Cracks selecciona mejor</small>
+                        <h3>Una portada de comparador, no de experimento.</h3>
+                        <p>
+                            Pensada para abrir, escribir una busqueda y encontrar opciones claras en segundos.
+                            Sin menus confusos, sin pasos innecesarios y con una lectura muy rapida de precio,
+                            tienda y oportunidad.
+                        </p>
+                    </div>
+
+                    <div class="mini-stats">
+                        <div class="mini-stat">
+                            <strong>Top 3</strong>
+                            <span>Las mejores opciones aparecen destacadas para decidir mas rapido.</span>
+                        </div>
+                        <div class="mini-stat">
+                            <strong>Chollos</strong>
+                            <span>Se marcan las ofertas que caen claramente por debajo del precio medio.</span>
+                        </div>
+                        <div class="mini-stat">
+                            <strong>Filtros</strong>
+                            <span>Controla el titulo del producto con incluir, excluir y modo flexible.</span>
+                        </div>
+                        <div class="mini-stat">
+                            <strong>Gratis</strong>
+                            <span>Las busquedas guardadas viven en tu navegador, perfecto para este despliegue.</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-
-            <div class="filters">
-                <input id="includeWords" type="text" placeholder="Incluir palabras en el titulo. Ejemplo: 128gb, pro">
-                <select id="includeMode">
-                    <option value="all">Debe tener todas</option>
-                    <option value="any">Puede tener cualquiera</option>
-                </select>
-                <input id="excludeWords" type="text" placeholder="Excluir palabras en el titulo. Ejemplo: funda, reacondicionado">
-            </div>
-
-            <div class="examples">
-                <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
-                <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
-                <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
-            </div>
-
-            <div class="status" id="status">Listo para buscar.</div>
-            <div class="meta" id="meta"></div>
         </section>
 
         <section class="section" id="topSection">
