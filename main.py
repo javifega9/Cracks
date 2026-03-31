@@ -990,6 +990,114 @@ def build_home_page() -> str:
             margin-top: 8px;
         }
 
+        .spotlight {
+            display: none;
+            margin-top: 22px;
+            background: linear-gradient(135deg, rgba(15, 58, 89, 0.96) 0%, rgba(22, 83, 122, 0.94) 100%);
+            color: white;
+            border-radius: 28px;
+            padding: 22px 24px;
+            box-shadow: 0 22px 44px rgba(16, 61, 96, 0.20);
+        }
+
+        .spotlight-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.12);
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .spotlight-title {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            letter-spacing: -0.03em;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .spotlight-copy {
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 0.98rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .spotlight-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .spotlight-price {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .spotlight-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #ffb34f 0%, #f08a31 100%);
+            color: #4a2107;
+            text-decoration: none;
+            font-weight: 800;
+            box-shadow: 0 14px 24px rgba(240, 138, 49, 0.24);
+        }
+
+        .spotlight-button:hover {
+            background: linear-gradient(135deg, #ffc361 0%, #f59b45 100%);
+            text-decoration: none;
+        }
+
+        .compare-strip {
+            display: none;
+            margin-top: 20px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .compare-item {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .compare-item strong {
+            display: block;
+            font-size: 0.88rem;
+            color: var(--accent);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .compare-item-title {
+            font-size: 0.96rem;
+            font-weight: 700;
+            line-height: 1.45;
+            margin-bottom: 8px;
+        }
+
+        .compare-item-price {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1348,6 +1456,8 @@ def build_home_page() -> str:
                     </div>
                 </div>
             </div>
+            <div class="spotlight" id="spotlightBox"></div>
+            <div class="compare-strip" id="compareStrip"></div>
             <div class="featured-grid" id="topGrid"></div>
         </section>
 
@@ -1376,6 +1486,8 @@ def build_home_page() -> str:
         const statusBox = document.getElementById("status");
         const metaBox = document.getElementById("meta");
         const topSection = document.getElementById("topSection");
+        const spotlightBox = document.getElementById("spotlightBox");
+        const compareStrip = document.getElementById("compareStrip");
         const topGrid = document.getElementById("topGrid");
         const savedGrid = document.getElementById("savedGrid");
         let latestSearchData = null;
@@ -1501,6 +1613,47 @@ def build_home_page() -> str:
             `;
         }
 
+        function renderSpotlight(product) {
+            if (!product) {
+                spotlightBox.style.display = "none";
+                spotlightBox.innerHTML = "";
+                return;
+            }
+
+            spotlightBox.innerHTML = `
+                <div class="spotlight-label">Recomendacion principal</div>
+                <div class="spotlight-title">${escapeHtml(product.titulo)}</div>
+                <div class="spotlight-copy">
+                    ${escapeHtml(product.etiqueta || "La seleccion mas equilibrada para decidir rapido.")} ${escapeHtml(product.es_amazon ? "Prioriza Amazon para maximizar conversion." : "")}
+                </div>
+                <div class="spotlight-actions">
+                    <div>
+                        <div class="spotlight-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="link-note" style="color: rgba(255,255,255,0.72);">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                    </div>
+                    <a class="spotlight-button" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">Ver en Amazon</a>
+                </div>
+            `;
+            spotlightBox.style.display = "block";
+        }
+
+        function renderCompareStrip(products) {
+            if (!products || !products.length) {
+                compareStrip.style.display = "none";
+                compareStrip.innerHTML = "";
+                return;
+            }
+
+            compareStrip.innerHTML = products.map((product) => `
+                <article class="compare-item">
+                    <strong>${escapeHtml(product.categoria_destacada || "Destacado")}</strong>
+                    <div class="compare-item-title">${escapeHtml(product.titulo)}</div>
+                    <div class="compare-item-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                </article>
+            `).join("");
+            compareStrip.style.display = "grid";
+        }
+
         async function loadSavedSearches() {
             const items = getLocalSavedSearches();
 
@@ -1526,6 +1679,8 @@ def build_home_page() -> str:
             statusBox.textContent = "Buscando productos...";
             metaBox.style.display = "none";
             topSection.style.display = "none";
+            spotlightBox.style.display = "none";
+            compareStrip.style.display = "none";
             topGrid.innerHTML = "";
 
             try {
@@ -1561,6 +1716,9 @@ def build_home_page() -> str:
                 topGrid.innerHTML = data.top_3_mejores_opciones
                     .map((product, index) => renderCard(product, index + 1))
                     .join("");
+
+                renderSpotlight(data.top_3_mejores_opciones[0]);
+                renderCompareStrip(data.top_3_mejores_opciones);
 
                 topSection.style.display = data.top_3_mejores_opciones.length ? "block" : "none";
 
