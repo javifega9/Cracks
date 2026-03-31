@@ -28,6 +28,9 @@ REVIEW_THREAD_STARTED = False
 AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "").strip()
 AMAZON_DOMAIN = os.getenv("AMAZON_DOMAIN", "amazon.es").strip().lower()
 AMAZON_CACHE: dict[str, str | None] = {}
+SEARCH_CACHE_TTL_SECONDS = int(os.getenv("SEARCH_CACHE_TTL_SECONDS", "900"))
+SEARCH_CACHE_LOCK = threading.Lock()
+SEARCH_CACHE: dict[str, dict[str, Any]] = {}
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "30"))
 RATE_LIMIT_LOCK = threading.Lock()
@@ -513,6 +516,43 @@ def model_to_dict(model: BaseModel) -> dict[str, Any]:
     return dict(model.dict())
 
 
+def build_search_cache_key(
+    query: str,
+    include_words: list[str],
+    include_mode: str,
+    exclude_words: list[str],
+) -> str:
+    payload = {
+        "query": query.strip().lower(),
+        "include_words": include_words,
+        "include_mode": include_mode,
+        "exclude_words": exclude_words,
+    }
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True)
+
+
+def get_cached_search_result(cache_key: str) -> SearchResponse | None:
+    now = time.time()
+    with SEARCH_CACHE_LOCK:
+        cached = SEARCH_CACHE.get(cache_key)
+        if not cached:
+            return None
+
+        if now - cached["timestamp"] > SEARCH_CACHE_TTL_SECONDS:
+            SEARCH_CACHE.pop(cache_key, None)
+            return None
+
+        return SearchResponse(**cached["data"])
+
+
+def set_cached_search_result(cache_key: str, result: SearchResponse) -> None:
+    with SEARCH_CACHE_LOCK:
+        SEARCH_CACHE[cache_key] = {
+            "timestamp": time.time(),
+            "data": model_to_dict(result),
+        }
+
+
 def run_search_logic(
     query: str,
     include_words: list[str] | None = None,
@@ -522,6 +562,11 @@ def run_search_logic(
     include_words = include_words or []
     exclude_words = exclude_words or []
     include_mode = "any" if include_mode == "any" else "all"
+    cache_key = build_search_cache_key(query, include_words, include_mode, exclude_words)
+    cached = get_cached_search_result(cache_key)
+    if cached:
+        return cached
+
     improved_query = improve_query_with_openai(query)
     products = search_google_shopping(improved_query)
     products = filter_products_by_title(products, include_words, include_mode, exclude_words)
@@ -529,7 +574,7 @@ def run_search_logic(
     average_price = mark_bargains(products)
     top_3 = choose_top_3_with_openai(query, improved_query, average_price, products)
 
-    return SearchResponse(
+    result = SearchResponse(
         query_original=query,
         query_mejorada=improved_query,
         incluir_palabras=include_words,
@@ -539,6 +584,8 @@ def run_search_logic(
         productos=[clean_product(product) for product in products],
         top_3_mejores_opciones=[clean_product(product) for product in top_3],
     )
+    set_cached_search_result(cache_key, result)
+    return result
 
 
 def ensure_saved_search_file() -> None:
@@ -1430,6 +1477,10 @@ def build_home_page() -> str:
             </div>
             <div class="saved-grid" id="savedGrid"></div>
         </section>
+
+        <div class="status" style="margin-top: 22px;">
+            Transparencia: algunos enlaces pueden ser enlaces de afiliado. Si compras a traves de ellos, Cracks podria recibir una comision sin coste extra para ti.
+        </div>
     </div>
 
     <script>
@@ -1826,11 +1877,13 @@ def search(
 
 @app.post("/save-search", response_model=SaveSearchResponse)
 def save_search(
+    request: Request,
     query: str = Query(..., min_length=2, description="Busqueda a guardar"),
     include_words: str = Query("", description="Palabras que deben aparecer en el titulo"),
     include_mode: str = Query("all", description="all o any para las palabras a incluir"),
     exclude_words: str = Query("", description="Palabras que no deben aparecer en el titulo"),
 ) -> SaveSearchResponse:
+    enforce_rate_limit(request)
     record = save_search_record(
         query,
         split_words(include_words),
@@ -1845,7 +1898,8 @@ def save_search(
 
 
 @app.get("/saved-searches", response_model=SavedSearchListResponse)
-def list_saved_searches() -> SavedSearchListResponse:
+def list_saved_searches(request: Request) -> SavedSearchListResponse:
+    enforce_rate_limit(request)
     items = load_saved_searches_raw()
     response_items = []
 
@@ -1868,7 +1922,8 @@ def list_saved_searches() -> SavedSearchListResponse:
 
 
 @app.post("/review-saved-searches")
-def review_saved_searches_now() -> dict[str, Any]:
+def review_saved_searches_now(request: Request) -> dict[str, Any]:
+    enforce_rate_limit(request)
     items = review_saved_searches(force=True)
     return {
         "message": "Revision completada.",
