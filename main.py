@@ -992,28 +992,6 @@ def build_home_page() -> str:
             gap: 14px;
         }
 
-        .filters {
-            display: grid;
-            grid-template-columns: 1fr 220px 1fr;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        select {
-            width: 100%;
-            padding: 16px 18px;
-            border-radius: 18px;
-            border: 1px solid var(--line);
-            font-size: 0.98rem;
-            outline: none;
-            background: rgba(255, 255, 255, 0.96);
-        }
-
-        select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
-        }
-
         input[type="text"] {
             width: 100%;
             padding: 20px 22px;
@@ -1119,7 +1097,7 @@ def build_home_page() -> str:
         }
 
         .section {
-            margin-top: 72px;
+            margin-top: 40px;
             display: none;
         }
 
@@ -1483,10 +1461,6 @@ def build_home_page() -> str:
                 padding: 18px;
             }
 
-            .filters {
-                grid-template-columns: 1fr;
-            }
-
             .search-utility-row {
                 align-items: stretch;
                 flex-direction: column;
@@ -1549,15 +1523,6 @@ def build_home_page() -> str:
                             <button id="searchButton" class="primary-button">Buscar</button>
                         </div>
 
-                        <div class="filters">
-                            <input id="includeWords" type="text" placeholder="Incluir palabras. Ejemplo: 128gb, pro">
-                            <select id="includeMode">
-                                <option value="all">Debe tener todas</option>
-                                <option value="any">Puede tener cualquiera</option>
-                            </select>
-                            <input id="excludeWords" type="text" placeholder="Excluir palabras. Ejemplo: funda, reacondicionado">
-                        </div>
-
                         <div class="search-utility-row">
                             <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
                             <div class="examples">
@@ -1577,8 +1542,8 @@ def build_home_page() -> str:
 
                     <div class="hero-points">
                         <div class="hero-point">
-                            <strong>Busqueda afinada</strong>
-                            <span>Incluye y excluye palabras para eliminar resultados irrelevantes.</span>
+                            <strong>Busqueda directa</strong>
+                            <span>Escribe lo que quieres comprar y ve solo tres opciones claras.</span>
                         </div>
                         <div class="hero-point">
                             <strong>Top 3 util</strong>
@@ -1624,9 +1589,6 @@ def build_home_page() -> str:
     <script>
         const LOCAL_STORAGE_KEY = "cracks_saved_searches";
         const queryInput = document.getElementById("query");
-        const includeWordsInput = document.getElementById("includeWords");
-        const includeModeInput = document.getElementById("includeMode");
-        const excludeWordsInput = document.getElementById("excludeWords");
         const searchButton = document.getElementById("searchButton");
         const saveButton = document.getElementById("saveButton");
         const reviewSavedButton = document.getElementById("reviewSavedButton");
@@ -1654,6 +1616,13 @@ def build_home_page() -> str:
 
         function nowLocalIso() {
             return new Date().toLocaleString();
+        }
+
+        function scrollResultsIntoView() {
+            requestAnimationFrame(() => {
+                const top = Math.max(topSection.getBoundingClientRect().top + window.scrollY - 18, 0);
+                window.scrollTo({ top, behavior: "smooth" });
+            });
         }
 
         function getLocalSavedSearches() {
@@ -1753,23 +1722,17 @@ def build_home_page() -> str:
 
         function renderSavedSearch(item) {
             const queryJs = JSON.stringify(item.query_original || "");
-            const includeJs = JSON.stringify((item.incluir_palabras || []).join(", "));
-            const includeModeJs = JSON.stringify(item.modo_inclusion || "all");
-            const excludeJs = JSON.stringify((item.excluir_palabras || []).join(", "));
 
             return `
                 <article class="card">
                     <div class="title">${escapeHtml(item.query_original)}</div>
                     <div class="saved-meta">Mejorada: ${escapeHtml(item.query_mejorada)}</div>
-                    <div class="saved-meta">Incluir: ${escapeHtml((item.incluir_palabras || []).join(", ") || "Nada")}</div>
-                    <div class="saved-meta">Modo incluir: ${escapeHtml(item.modo_inclusion === "any" ? "Cualquiera" : "Todas")}</div>
-                    <div class="saved-meta">Excluir: ${escapeHtml((item.excluir_palabras || []).join(", ") || "Nada")}</div>
                     <div class="saved-meta">Ultima revision: ${escapeHtml(item.ultima_revision)}</div>
                     <div class="saved-meta">Productos: ${escapeHtml(item.total_productos)}</div>
                     <div class="saved-meta">Chollos detectados: ${escapeHtml(item.chollos_detectados)}</div>
                     <div class="saved-actions">
-                        <button class="secondary-button small-button" type="button" onclick='repeatSearch(${queryJs}, ${includeJs}, ${includeModeJs}, ${excludeJs})'>Buscar</button>
-                        <button class="secondary-button small-button" type="button" onclick='saveCurrentQuery(${queryJs}, ${includeJs}, ${includeModeJs}, ${excludeJs})'>Actualizar guardada</button>
+                        <button class="secondary-button small-button" type="button" onclick='repeatSearch(${queryJs})'>Buscar</button>
+                        <button class="secondary-button small-button" type="button" onclick='saveCurrentQuery(${queryJs})'>Actualizar guardada</button>
                     </div>
                 </article>
             `;
@@ -1829,9 +1792,6 @@ def build_home_page() -> str:
 
         async function doSearch() {
             const query = queryInput.value.trim();
-            const includeWords = includeWordsInput.value.trim();
-            const includeMode = includeModeInput.value;
-            const excludeWords = excludeWordsInput.value.trim();
 
             if (!query) {
                 statusBox.textContent = "Escribe algo para buscar.";
@@ -1847,10 +1807,7 @@ def build_home_page() -> str:
 
             try {
                 const params = new URLSearchParams({
-                    query: query,
-                    include_words: includeWords,
-                    include_mode: includeMode,
-                    exclude_words: excludeWords
+                    query: query
                 });
                 const response = await fetch(`/search?${params.toString()}`);
                 const data = await readJsonResponse(response);
@@ -1867,9 +1824,6 @@ def build_home_page() -> str:
                     <strong>Resumen de la busqueda</strong>
                     <div><b>Original:</b> ${escapeHtml(data.query_original)}</div>
                     <div><b>Mejorada:</b> ${escapeHtml(data.query_mejorada)}</div>
-                    <div><b>Incluir:</b> ${escapeHtml((data.incluir_palabras || []).join(", ") || "Nada")}</div>
-                    <div><b>Modo incluir:</b> ${escapeHtml(data.modo_inclusion === "any" ? "Cualquiera" : "Todas")}</div>
-                    <div><b>Excluir:</b> ${escapeHtml((data.excluir_palabras || []).join(", ") || "Nada")}</div>
                     <div><b>Precio medio aproximado:</b> ${escapeHtml(average)}</div>
                     <div><b>Chollos detectados:</b> ${escapeHtml(chollos)}</div>
                 `;
@@ -1888,17 +1842,15 @@ def build_home_page() -> str:
                     statusBox.textContent = "No se encontraron productos para esa busqueda.";
                 } else {
                     statusBox.textContent = `Busqueda completada. Mostrando 3 opciones destacadas para decidir mas rapido.`;
+                    scrollResultsIntoView();
                 }
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
             }
         }
 
-        async function saveCurrentQuery(customQuery, customIncludeWords, customIncludeMode, customExcludeWords) {
+        async function saveCurrentQuery(customQuery) {
             const query = (customQuery || queryInput.value).trim();
-            const includeWords = (customIncludeWords ?? includeWordsInput.value).trim();
-            const includeMode = customIncludeMode ?? includeModeInput.value;
-            const excludeWords = (customExcludeWords ?? excludeWordsInput.value).trim();
 
             if (!query) {
                 statusBox.textContent = "Primero escribe algo para guardar.";
@@ -1912,17 +1864,11 @@ def build_home_page() -> str:
 
                 const latestMatchesCurrent =
                     data &&
-                    data.query_original === query &&
-                    (data.incluir_palabras || []).join(", ") === includeWords &&
-                    (data.modo_inclusion || "all") === includeMode &&
-                    (data.excluir_palabras || []).join(", ") === excludeWords;
+                    data.query_original === query;
 
                 if (!latestMatchesCurrent) {
                     const params = new URLSearchParams({
-                        query: query,
-                        include_words: includeWords,
-                        include_mode: includeMode,
-                        exclude_words: excludeWords
+                        query: query
                     });
                     const response = await fetch(`/search?${params.toString()}`);
                     data = await readJsonResponse(response);
@@ -1935,9 +1881,9 @@ def build_home_page() -> str:
                 const item = {
                     query_original: data.query_original,
                     query_mejorada: data.query_mejorada,
-                    incluir_palabras: data.incluir_palabras || [],
-                    modo_inclusion: data.modo_inclusion || "all",
-                    excluir_palabras: data.excluir_palabras || [],
+                    incluir_palabras: [],
+                    modo_inclusion: "all",
+                    excluir_palabras: [],
                     guardada_en: nowLocalIso(),
                     ultima_revision: nowLocalIso(),
                     ultima_revision_dia: todayKey(),
@@ -1962,10 +1908,7 @@ def build_home_page() -> str:
 
                 for (const item of items) {
                     const params = new URLSearchParams({
-                        query: item.query_original || "",
-                        include_words: (item.incluir_palabras || []).join(", "),
-                        include_mode: item.modo_inclusion || "all",
-                        exclude_words: (item.excluir_palabras || []).join(", ")
+                        query: item.query_original || ""
                     });
                     const response = await fetch(`/search?${params.toString()}`);
                     const data = await readJsonResponse(response);
@@ -1977,9 +1920,9 @@ def build_home_page() -> str:
                     upsertLocalSavedSearch({
                         query_original: data.query_original,
                         query_mejorada: data.query_mejorada,
-                        incluir_palabras: data.incluir_palabras || [],
-                        modo_inclusion: data.modo_inclusion || "all",
-                        excluir_palabras: data.excluir_palabras || [],
+                        incluir_palabras: [],
+                        modo_inclusion: "all",
+                        excluir_palabras: [],
                         guardada_en: item.guardada_en || nowLocalIso(),
                         ultima_revision: nowLocalIso(),
                         ultima_revision_dia: todayKey(),
@@ -2010,11 +1953,8 @@ def build_home_page() -> str:
             await reviewSavedSearchesNow();
         }
 
-        function repeatSearch(text, includeWords = "", includeMode = "all", excludeWords = "") {
+        function repeatSearch(text) {
             queryInput.value = text;
-            includeWordsInput.value = includeWords;
-            includeModeInput.value = includeMode;
-            excludeWordsInput.value = excludeWords;
             doSearch();
         }
 
