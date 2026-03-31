@@ -1,4 +1,4 @@
-fastapi
-openai
-requests
-uvicorn[standard]
+fastapi~=0.115.0
+openai~=1.54.0
+requests~=2.32.0
+uvicorn[standard]~=0.32.0

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: buscador-ofertas
+    name: cracks
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

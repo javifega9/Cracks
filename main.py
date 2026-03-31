@@ -21,6 +21,8 @@ SHOPPING_HL = os.getenv("SHOPPING_HL", "es")
 CHOLLO_THRESHOLD = float(os.getenv("CHOLLO_THRESHOLD", "0.75"))
 AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "").strip()
 AMAZON_DOMAIN = os.getenv("AMAZON_DOMAIN", "amazon.es").strip().lower()
+MAX_SHOPPING_RESULTS = int(os.getenv("MAX_SHOPPING_RESULTS", "10"))
+AMAZON_LOOKUP_MAX_PRODUCTS = int(os.getenv("AMAZON_LOOKUP_MAX_PRODUCTS", "4"))
 AMAZON_CACHE: dict[str, str | None] = {}
 SEARCH_CACHE_TTL_SECONDS = int(os.getenv("SEARCH_CACHE_TTL_SECONDS", "900"))
 SEARCH_CACHE_LOCK = threading.Lock()
@@ -283,10 +285,7 @@ def find_amazon_link_for_title(title: str) -> str | None:
     return None
 
 
-def enrich_products_with_amazon(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if not products or not AMAZON_AFFILIATE_TAG:
-        return products
-
+def initialize_amazon_metadata(products: list[dict[str, Any]]) -> None:
     for product in products:
         original_link = str(product.get("link") or "")
         product["link_original"] = original_link
@@ -299,6 +298,38 @@ def enrich_products_with_amazon(products: list[dict[str, Any]]) -> list[dict[str
             product["tienda"] = "Amazon"
             product["es_amazon"] = True
             product["es_afiliado_amazon"] = affiliate_link != original_link
+
+
+def select_amazon_lookup_candidates(
+    products: list[dict[str, Any]],
+    average_price: float | None,
+) -> list[dict[str, Any]]:
+    if AMAZON_LOOKUP_MAX_PRODUCTS <= 0:
+        return []
+
+    candidates = [
+        product
+        for product in products
+        if not product.get("es_amazon") and str(product.get("titulo") or "").strip()
+    ]
+    candidates.sort(key=lambda product: score_overall_choice(product, average_price))
+    return candidates[:AMAZON_LOOKUP_MAX_PRODUCTS]
+
+
+def enrich_products_with_amazon(
+    products: list[dict[str, Any]],
+    average_price: float | None,
+) -> list[dict[str, Any]]:
+    if not products:
+        return products
+
+    initialize_amazon_metadata(products)
+
+    if not AMAZON_AFFILIATE_TAG:
+        return products
+
+    for product in select_amazon_lookup_candidates(products, average_price):
+        if product.get("es_amazon"):
             continue
 
         amazon_link = find_amazon_link_for_title(product.get("titulo", ""))
@@ -333,7 +364,7 @@ def search_google_shopping(query: str) -> list[dict[str, Any]]:
     raw_products = data.get("shopping_results", [])
 
     products = []
-    for item in raw_products[:12]:
+    for item in raw_products[:MAX_SHOPPING_RESULTS]:
         title = item.get("title")
         price = item.get("price")
         store = item.get("source") or item.get("merchant_name")
@@ -659,8 +690,8 @@ def run_search_logic(
     improved_query = improve_query_with_openai(query)
     products = search_google_shopping(improved_query)
     products = filter_products_by_title(products, include_words, include_mode, exclude_words)
-    products = enrich_products_with_amazon(products)
     average_price = mark_bargains(products)
+    products = enrich_products_with_amazon(products, average_price)
     products = sorted(products, key=lambda product: score_overall_choice(product, average_price))
     top_3 = label_featured_products(products, average_price)
     top_3 = enrich_featured_products_with_openai(top_3, average_price)
