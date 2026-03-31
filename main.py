@@ -1,0 +1,1213 @@
+import json
+import os
+import re
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import requests
+import uvicorn
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from openai import OpenAI
+from pydantic import BaseModel
+
+
+SERPAPI_URL = "https://serpapi.com/search.json"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+SHOPPING_GL = os.getenv("SHOPPING_GL", "es")
+SHOPPING_HL = os.getenv("SHOPPING_HL", "es")
+CHOLLO_THRESHOLD = float(os.getenv("CHOLLO_THRESHOLD", "0.75"))
+REVIEW_INTERVAL_SECONDS = int(os.getenv("REVIEW_INTERVAL_SECONDS", "3600"))
+SAVED_SEARCHES_FILE = Path(__file__).with_name("saved_searches.json")
+FILE_LOCK = threading.Lock()
+REVIEW_THREAD_STARTED = False
+
+app = FastAPI(
+    title="Buscador de ofertas",
+    description="API simple para buscar productos con SerpAPI y OpenAI.",
+    version="1.0.0",
+)
+
+
+class Product(BaseModel):
+    titulo: str
+    precio: str | None = None
+    tienda: str | None = None
+    link: str
+    es_chollo: bool = False
+
+
+class SearchResponse(BaseModel):
+    query_original: str
+    query_mejorada: str
+    incluir_palabras: list[str] = []
+    modo_inclusion: str = "all"
+    excluir_palabras: list[str] = []
+    precio_medio: float | None = None
+    productos: list[Product]
+    top_3_mejores_opciones: list[Product]
+
+
+class SaveSearchResponse(BaseModel):
+    message: str
+    query_original: str
+    ultima_revision: str
+
+
+class SavedSearchItem(BaseModel):
+    query_original: str
+    query_mejorada: str
+    incluir_palabras: list[str]
+    modo_inclusion: str
+    excluir_palabras: list[str]
+    guardada_en: str
+    ultima_revision: str
+    total_productos: int
+    chollos_detectados: int
+
+
+class SavedSearchListResponse(BaseModel):
+    busquedas_guardadas: list[SavedSearchItem]
+
+
+def now_iso() -> str:
+    return datetime.now().astimezone().replace(microsecond=0).isoformat()
+
+
+def today_key() -> str:
+    return datetime.now().astimezone().date().isoformat()
+
+
+def get_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Falta la variable de entorno {name}",
+        )
+    return value
+
+
+def get_openai_client() -> OpenAI:
+    return OpenAI(api_key=get_env("OPENAI_API_KEY"))
+
+
+def extract_json(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```json\s*", "", cleaned)
+    cleaned = re.sub(r"^```\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    return json.loads(cleaned)
+
+
+def improve_query_with_openai(query: str) -> str:
+    client = get_openai_client()
+
+    prompt = f"""
+Eres un asistente que mejora busquedas de productos para Google Shopping.
+
+Quiero que tomes la busqueda del usuario y la conviertas en una busqueda mas clara y util para encontrar productos.
+
+Reglas:
+- Manten la intencion original.
+- No inventes marcas ni detalles que el usuario no pidio.
+- Devuelve solo JSON valido.
+- Formato exacto:
+  {{"improved_query": "texto"}}
+
+Busqueda del usuario: {query}
+""".strip()
+
+    try:
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            input=prompt,
+        )
+        data = extract_json(response.output_text or "")
+        improved_query = data.get("improved_query", "").strip()
+        return improved_query or query
+    except Exception:
+        return query
+
+
+def extract_numeric_price(price_text: str | None) -> float | None:
+    if not price_text:
+        return None
+
+    cleaned = re.sub(r"[^\d,\.]", "", str(price_text))
+    if not cleaned:
+        return None
+
+    last_dot = cleaned.rfind(".")
+    last_comma = cleaned.rfind(",")
+
+    if last_dot > last_comma:
+        normalized = cleaned.replace(",", "")
+    elif last_comma > last_dot:
+        normalized = cleaned.replace(".", "").replace(",", ".")
+    else:
+        normalized = cleaned.replace(",", ".")
+
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
+def split_words(text: str | None) -> list[str]:
+    if not text:
+        return []
+
+    normalized = text.replace(";", ",")
+    parts = [part.strip().lower() for part in normalized.split(",")]
+    return [part for part in parts if part]
+
+
+def filter_products_by_title(
+    products: list[dict[str, Any]],
+    include_words: list[str] | None = None,
+    include_mode: str = "all",
+    exclude_words: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    include_words = include_words or []
+    exclude_words = exclude_words or []
+    include_mode = "any" if include_mode == "any" else "all"
+
+    if not include_words and not exclude_words:
+        return products
+
+    filtered = []
+    for product in products:
+        title = str(product.get("titulo", "")).lower()
+
+        if include_words:
+            if include_mode == "all" and not all(word in title for word in include_words):
+                continue
+            if include_mode == "any" and not any(word in title for word in include_words):
+                continue
+
+        if exclude_words and any(word in title for word in exclude_words):
+            continue
+
+        filtered.append(product)
+
+    return filtered
+
+
+def search_google_shopping(query: str) -> list[dict[str, Any]]:
+    params = {
+        "engine": "google_shopping",
+        "q": query,
+        "api_key": get_env("SERPAPI_KEY"),
+        "gl": SHOPPING_GL,
+        "hl": SHOPPING_HL,
+    }
+
+    try:
+        response = requests.get(SERPAPI_URL, params=params, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Error al consultar SerpAPI",
+        ) from exc
+
+    data = response.json()
+    raw_products = data.get("shopping_results", [])
+
+    products = []
+    for item in raw_products[:12]:
+        title = item.get("title")
+        price = item.get("price")
+        store = item.get("source") or item.get("merchant_name")
+        link = item.get("link") or item.get("product_link")
+        numeric_price = item.get("extracted_price")
+
+        if not isinstance(numeric_price, (int, float)):
+            numeric_price = extract_numeric_price(price)
+
+        if not title or not link:
+            continue
+
+        products.append(
+            {
+                "titulo": title,
+                "precio": price,
+                "tienda": store,
+                "link": link,
+                "precio_numerico": numeric_price,
+                "es_chollo": False,
+            }
+        )
+
+    return products
+
+
+def mark_bargains(products: list[dict[str, Any]]) -> float | None:
+    numeric_prices = [
+        float(product["precio_numerico"])
+        for product in products
+        if isinstance(product.get("precio_numerico"), (int, float))
+    ]
+
+    if not numeric_prices:
+        return None
+
+    average_price = round(sum(numeric_prices) / len(numeric_prices), 2)
+    bargain_limit = average_price * CHOLLO_THRESHOLD
+
+    for product in products:
+        numeric_price = product.get("precio_numerico")
+        product["es_chollo"] = bool(
+            isinstance(numeric_price, (int, float)) and numeric_price <= bargain_limit
+        )
+
+    return average_price
+
+
+def fallback_top_3(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def sort_key(product: dict[str, Any]) -> tuple[Any, Any, Any]:
+        bargain_score = 0 if product.get("es_chollo") else 1
+        price = product.get("precio_numerico")
+        if isinstance(price, (int, float)):
+            return (bargain_score, 0, price)
+        return (bargain_score, 1, float("inf"))
+
+    return sorted(products, key=sort_key)[:3]
+
+
+def choose_top_3_with_openai(
+    original_query: str,
+    improved_query: str,
+    average_price: float | None,
+    products: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not products:
+        return []
+
+    client = get_openai_client()
+
+    simplified_products = []
+    for index, product in enumerate(products):
+        simplified_products.append(
+            {
+                "index": index,
+                "titulo": product["titulo"],
+                "precio": product["precio"],
+                "tienda": product["tienda"],
+                "es_chollo": product.get("es_chollo", False),
+            }
+        )
+
+    prompt = f"""
+Eres un asistente que elige las 3 mejores opciones de compra.
+
+Debes priorizar:
+- relevancia con la busqueda
+- relacion calidad/precio
+- claridad del resultado
+- si un producto esta marcado como chollo, dale valor extra
+
+Devuelve solo JSON valido con este formato exacto:
+{{"top_indices": [0, 1, 2]}}
+
+Busqueda original: {original_query}
+Busqueda mejorada: {improved_query}
+Precio medio aproximado: {average_price}
+Productos: {json.dumps(simplified_products, ensure_ascii=False)}
+""".strip()
+
+    try:
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            input=prompt,
+        )
+        data = extract_json(response.output_text or "")
+        indices = data.get("top_indices", [])
+
+        selected = []
+        seen = set()
+        for index in indices:
+            if isinstance(index, int) and 0 <= index < len(products) and index not in seen:
+                selected.append(products[index])
+                seen.add(index)
+
+        if selected:
+            return selected[:3]
+    except Exception:
+        pass
+
+    return fallback_top_3(products)
+
+
+def clean_product(product: dict[str, Any]) -> Product:
+    return Product(
+        titulo=product["titulo"],
+        precio=product.get("precio"),
+        tienda=product.get("tienda"),
+        link=product["link"],
+        es_chollo=bool(product.get("es_chollo", False)),
+    )
+
+
+def model_to_dict(model: BaseModel) -> dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return dict(model.dict())
+
+
+def run_search_logic(
+    query: str,
+    include_words: list[str] | None = None,
+    include_mode: str = "all",
+    exclude_words: list[str] | None = None,
+) -> SearchResponse:
+    include_words = include_words or []
+    exclude_words = exclude_words or []
+    include_mode = "any" if include_mode == "any" else "all"
+    improved_query = improve_query_with_openai(query)
+    products = search_google_shopping(improved_query)
+    products = filter_products_by_title(products, include_words, include_mode, exclude_words)
+    average_price = mark_bargains(products)
+    top_3 = choose_top_3_with_openai(query, improved_query, average_price, products)
+
+    return SearchResponse(
+        query_original=query,
+        query_mejorada=improved_query,
+        incluir_palabras=include_words,
+        modo_inclusion=include_mode,
+        excluir_palabras=exclude_words,
+        precio_medio=average_price,
+        productos=[clean_product(product) for product in products],
+        top_3_mejores_opciones=[clean_product(product) for product in top_3],
+    )
+
+
+def ensure_saved_search_file() -> None:
+    with FILE_LOCK:
+        if not SAVED_SEARCHES_FILE.exists():
+            SAVED_SEARCHES_FILE.write_text(
+                json.dumps([], ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+
+def load_saved_searches_raw() -> list[dict[str, Any]]:
+    ensure_saved_search_file()
+
+    with FILE_LOCK:
+        try:
+            raw = json.loads(SAVED_SEARCHES_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raw = []
+
+    if isinstance(raw, list):
+        return raw
+    return []
+
+
+def save_saved_searches_raw(items: list[dict[str, Any]]) -> None:
+    with FILE_LOCK:
+        SAVED_SEARCHES_FILE.write_text(
+            json.dumps(items, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
+def save_search_record(
+    query: str,
+    include_words: list[str] | None = None,
+    include_mode: str = "all",
+    exclude_words: list[str] | None = None,
+) -> dict[str, Any]:
+    include_words = include_words or []
+    exclude_words = exclude_words or []
+    include_mode = "any" if include_mode == "any" else "all"
+    result = run_search_logic(query, include_words, include_mode, exclude_words)
+    result_dict = model_to_dict(result)
+    saved_items = load_saved_searches_raw()
+    timestamp = now_iso()
+
+    record = {
+        "query_original": result.query_original,
+        "query_mejorada": result.query_mejorada,
+        "incluir_palabras": include_words,
+        "modo_inclusion": include_mode,
+        "excluir_palabras": exclude_words,
+        "guardada_en": timestamp,
+        "ultima_revision": timestamp,
+        "ultima_revision_dia": today_key(),
+        "total_productos": len(result.productos),
+        "chollos_detectados": sum(1 for item in result.productos if item.es_chollo),
+        "ultimo_resultado": result_dict,
+        "last_error": None,
+    }
+
+    updated = False
+    for index, item in enumerate(saved_items):
+        if item.get("query_original", "").strip().lower() == query.strip().lower():
+            record["guardada_en"] = item.get("guardada_en", timestamp)
+            saved_items[index] = record
+            updated = True
+            break
+
+    if not updated:
+        saved_items.append(record)
+
+    save_saved_searches_raw(saved_items)
+    return record
+
+
+def review_saved_searches(force: bool = False) -> list[dict[str, Any]]:
+    saved_items = load_saved_searches_raw()
+    today = today_key()
+    changed = False
+
+    for item in saved_items:
+        if not force and item.get("ultima_revision_dia") == today:
+            continue
+
+        query = item.get("query_original")
+        if not query:
+            continue
+
+        try:
+            include_words = list(item.get("incluir_palabras", []))
+            include_mode = item.get("modo_inclusion", "all")
+            exclude_words = list(item.get("excluir_palabras", []))
+            result = run_search_logic(query, include_words, include_mode, exclude_words)
+            result_dict = model_to_dict(result)
+            timestamp = now_iso()
+            item["query_mejorada"] = result.query_mejorada
+            item["incluir_palabras"] = include_words
+            item["modo_inclusion"] = include_mode
+            item["excluir_palabras"] = exclude_words
+            item["ultima_revision"] = timestamp
+            item["ultima_revision_dia"] = today
+            item["total_productos"] = len(result.productos)
+            item["chollos_detectados"] = sum(
+                1 for product in result.productos if product.es_chollo
+            )
+            item["ultimo_resultado"] = result_dict
+            item["last_error"] = None
+            changed = True
+        except Exception as exc:
+            item["ultima_revision"] = now_iso()
+            item["ultima_revision_dia"] = today
+            item["last_error"] = str(exc)
+            changed = True
+
+    if changed:
+        save_saved_searches_raw(saved_items)
+
+    return saved_items
+
+
+def background_review_loop() -> None:
+    while True:
+        try:
+            review_saved_searches()
+        except Exception:
+            pass
+        time.sleep(REVIEW_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+def startup_tasks() -> None:
+    global REVIEW_THREAD_STARTED
+
+    ensure_saved_search_file()
+    if REVIEW_THREAD_STARTED:
+        return
+
+    thread = threading.Thread(target=background_review_loop, daemon=True)
+    thread.start()
+    REVIEW_THREAD_STARTED = True
+
+
+def build_home_page() -> str:
+    return """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de ofertas</title>
+    <style>
+        :root {
+            --panel: #fffdf9;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --line: #e7dfd3;
+            --primary: #c46b2d;
+            --primary-dark: #9d4f18;
+            --highlight: #fff1dc;
+            --soft-green: #e8f7ea;
+            --soft-green-border: #9fd2a7;
+            --shadow: 0 18px 40px rgba(58, 36, 18, 0.10);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, #fff4df 0, transparent 30%),
+                linear-gradient(180deg, #f8f4ed 0%, #f2ede5 100%);
+            min-height: 100vh;
+        }
+
+        .wrap {
+            width: min(1120px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 40px 0 60px;
+        }
+
+        .hero {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            padding: 32px;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: clamp(2rem, 5vw, 3.6rem);
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .subtitle {
+            margin: 0 0 24px;
+            color: var(--muted);
+            font-size: 1.05rem;
+            max-width: 780px;
+        }
+
+        .search-bar {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 12px;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: 1fr 220px 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        select {
+            width: 100%;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            font-size: 1rem;
+            outline: none;
+            background: #ffffff;
+        }
+
+        select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            font-size: 1rem;
+            outline: none;
+            background: #ffffff;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
+        }
+
+        button {
+            border: 0;
+            border-radius: 16px;
+            padding: 0 22px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            min-height: 56px;
+        }
+
+        .primary-button {
+            background: var(--primary);
+            color: white;
+        }
+
+        .primary-button:hover {
+            background: var(--primary-dark);
+        }
+
+        .secondary-button {
+            background: white;
+            color: var(--text);
+            border: 1px solid var(--line);
+        }
+
+        .secondary-button:hover {
+            background: #fbf7f1;
+        }
+
+        .examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .example-chip {
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        .status {
+            margin-top: 18px;
+            color: var(--muted);
+            min-height: 24px;
+        }
+
+        .meta {
+            display: none;
+            margin-top: 24px;
+            background: var(--highlight);
+            border: 1px solid #f2d5a4;
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .meta strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .section {
+            margin-top: 28px;
+            display: none;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .section h2 {
+            margin: 0;
+            font-size: 1.35rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .saved-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .top-card {
+            border-color: #efb36d;
+            background: linear-gradient(180deg, #fff8ef 0%, #fffdf9 100%);
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #ffedd5;
+            color: #9a3412;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .bargain-badge {
+            background: var(--soft-green);
+            color: #166534;
+            border: 1px solid var(--soft-green-border);
+        }
+
+        .title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .price {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .store,
+        .saved-meta {
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+
+        .card a {
+            color: var(--primary-dark);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .card a:hover {
+            text-decoration: underline;
+        }
+
+        .saved-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .small-button {
+            min-height: auto;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 860px) {
+            .search-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .filters {
+                grid-template-columns: 1fr;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .section-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <section class="hero">
+            <h1>Buscador de ofertas</h1>
+            <p class="subtitle">
+                Escribe lo que quieres comprar y la herramienta buscara productos en Google Shopping,
+                mejorara la consulta con OpenAI, detectara posibles chollos y te dejara guardar busquedas
+                para revisarlas automaticamente una vez al dia mientras el servidor este encendido.
+            </p>
+
+            <div class="search-bar">
+                <input id="query" type="text" placeholder="Ejemplo: iphone 15, cafetera nespresso, portatil lenovo barato">
+                <button id="searchButton" class="primary-button">Buscar</button>
+                <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
+            </div>
+
+            <div class="filters">
+                <input id="includeWords" type="text" placeholder="Incluir palabras en el titulo. Ejemplo: 128gb, pro">
+                <select id="includeMode">
+                    <option value="all">Debe tener todas</option>
+                    <option value="any">Puede tener cualquiera</option>
+                </select>
+                <input id="excludeWords" type="text" placeholder="Excluir palabras en el titulo. Ejemplo: funda, reacondicionado">
+            </div>
+
+            <div class="examples">
+                <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
+                <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
+                <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
+            </div>
+
+            <div class="status" id="status">Listo para buscar.</div>
+            <div class="meta" id="meta"></div>
+        </section>
+
+        <section class="section" id="topSection">
+            <div class="section-header">
+                <h2>Top 3 mejores opciones</h2>
+            </div>
+            <div class="grid" id="topGrid"></div>
+        </section>
+
+        <section class="section" id="allSection">
+            <div class="section-header">
+                <h2>Todos los productos encontrados</h2>
+            </div>
+            <div class="grid" id="allGrid"></div>
+        </section>
+
+        <section class="section" id="savedSection" style="display:block;">
+            <div class="section-header">
+                <h2>Busquedas guardadas</h2>
+                <button id="reviewSavedButton" class="secondary-button" type="button">Revisar ahora</button>
+            </div>
+            <div class="saved-grid" id="savedGrid"></div>
+        </section>
+    </div>
+
+    <script>
+        const queryInput = document.getElementById("query");
+        const includeWordsInput = document.getElementById("includeWords");
+        const includeModeInput = document.getElementById("includeMode");
+        const excludeWordsInput = document.getElementById("excludeWords");
+        const searchButton = document.getElementById("searchButton");
+        const saveButton = document.getElementById("saveButton");
+        const reviewSavedButton = document.getElementById("reviewSavedButton");
+        const statusBox = document.getElementById("status");
+        const metaBox = document.getElementById("meta");
+        const topSection = document.getElementById("topSection");
+        const allSection = document.getElementById("allSection");
+        const topGrid = document.getElementById("topGrid");
+        const allGrid = document.getElementById("allGrid");
+        const savedGrid = document.getElementById("savedGrid");
+
+        function escapeHtml(text) {
+            return String(text ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function renderCard(product, rank) {
+            const badges = [];
+            if (rank) {
+                badges.push(`<div class="badge">Top ${rank}</div>`);
+            }
+            if (product.es_chollo) {
+                badges.push(`<div class="badge bargain-badge">Chollo</div>`);
+            }
+
+            return `
+                <article class="card ${rank ? "top-card" : ""}">
+                    <div class="badge-row">${badges.join("")}</div>
+                    <div class="title">${escapeHtml(product.titulo)}</div>
+                    <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                    <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                    <a href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">Ver producto</a>
+                </article>
+            `;
+        }
+
+        function renderSavedSearch(item) {
+            const queryJs = JSON.stringify(item.query_original || "");
+            const includeJs = JSON.stringify((item.incluir_palabras || []).join(", "));
+            const includeModeJs = JSON.stringify(item.modo_inclusion || "all");
+            const excludeJs = JSON.stringify((item.excluir_palabras || []).join(", "));
+
+            return `
+                <article class="card">
+                    <div class="title">${escapeHtml(item.query_original)}</div>
+                    <div class="saved-meta">Mejorada: ${escapeHtml(item.query_mejorada)}</div>
+                    <div class="saved-meta">Incluir: ${escapeHtml((item.incluir_palabras || []).join(", ") || "Nada")}</div>
+                    <div class="saved-meta">Modo incluir: ${escapeHtml(item.modo_inclusion === "any" ? "Cualquiera" : "Todas")}</div>
+                    <div class="saved-meta">Excluir: ${escapeHtml((item.excluir_palabras || []).join(", ") || "Nada")}</div>
+                    <div class="saved-meta">Ultima revision: ${escapeHtml(item.ultima_revision)}</div>
+                    <div class="saved-meta">Productos: ${escapeHtml(item.total_productos)}</div>
+                    <div class="saved-meta">Chollos detectados: ${escapeHtml(item.chollos_detectados)}</div>
+                    <div class="saved-actions">
+                        <button class="secondary-button small-button" type="button" onclick='repeatSearch(${queryJs}, ${includeJs}, ${includeModeJs}, ${excludeJs})'>Buscar</button>
+                        <button class="secondary-button small-button" type="button" onclick='saveCurrentQuery(${queryJs}, ${includeJs}, ${includeModeJs}, ${excludeJs})'>Actualizar guardada</button>
+                    </div>
+                </article>
+            `;
+        }
+
+        async function loadSavedSearches() {
+            try {
+                const response = await fetch("/saved-searches");
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "No se pudieron cargar las busquedas guardadas.");
+                }
+
+                if (!data.busquedas_guardadas.length) {
+                    savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div></article>`;
+                    return;
+                }
+
+                savedGrid.innerHTML = data.busquedas_guardadas.map(renderSavedSearch).join("");
+            } catch (error) {
+                savedGrid.innerHTML = `<article class="card"><div class="title">Error</div><div class="saved-meta">${escapeHtml(error.message)}</div></article>`;
+            }
+        }
+
+        async function doSearch() {
+            const query = queryInput.value.trim();
+            const includeWords = includeWordsInput.value.trim();
+            const includeMode = includeModeInput.value;
+            const excludeWords = excludeWordsInput.value.trim();
+
+            if (!query) {
+                statusBox.textContent = "Escribe algo para buscar.";
+                return;
+            }
+
+            statusBox.textContent = "Buscando productos...";
+            metaBox.style.display = "none";
+            topSection.style.display = "none";
+            allSection.style.display = "none";
+            topGrid.innerHTML = "";
+            allGrid.innerHTML = "";
+
+            try {
+                const params = new URLSearchParams({
+                    query: query,
+                    include_words: includeWords,
+                    include_mode: includeMode,
+                    exclude_words: excludeWords
+                });
+                const response = await fetch(`/search?${params.toString()}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Ha ocurrido un error.");
+                }
+
+                const chollos = data.productos.filter((product) => product.es_chollo).length;
+                const average = data.precio_medio ? `${data.precio_medio} EUR` : "No disponible";
+
+                metaBox.innerHTML = `
+                    <strong>Resumen de la busqueda</strong>
+                    <div><b>Original:</b> ${escapeHtml(data.query_original)}</div>
+                    <div><b>Mejorada:</b> ${escapeHtml(data.query_mejorada)}</div>
+                    <div><b>Incluir:</b> ${escapeHtml((data.incluir_palabras || []).join(", ") || "Nada")}</div>
+                    <div><b>Modo incluir:</b> ${escapeHtml(data.modo_inclusion === "any" ? "Cualquiera" : "Todas")}</div>
+                    <div><b>Excluir:</b> ${escapeHtml((data.excluir_palabras || []).join(", ") || "Nada")}</div>
+                    <div><b>Precio medio aproximado:</b> ${escapeHtml(average)}</div>
+                    <div><b>Chollos detectados:</b> ${escapeHtml(chollos)}</div>
+                `;
+                metaBox.style.display = "block";
+
+                topGrid.innerHTML = data.top_3_mejores_opciones
+                    .map((product, index) => renderCard(product, index + 1))
+                    .join("");
+
+                allGrid.innerHTML = data.productos
+                    .map((product) => renderCard(product))
+                    .join("");
+
+                topSection.style.display = data.top_3_mejores_opciones.length ? "block" : "none";
+                allSection.style.display = data.productos.length ? "block" : "none";
+
+                if (!data.productos.length) {
+                    statusBox.textContent = "No se encontraron productos para esa busqueda.";
+                } else {
+                    statusBox.textContent = `Busqueda completada. Productos encontrados: ${data.productos.length}`;
+                }
+            } catch (error) {
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function saveCurrentQuery(customQuery, customIncludeWords, customIncludeMode, customExcludeWords) {
+            const query = (customQuery || queryInput.value).trim();
+            const includeWords = (customIncludeWords ?? includeWordsInput.value).trim();
+            const includeMode = customIncludeMode ?? includeModeInput.value;
+            const excludeWords = (customExcludeWords ?? excludeWordsInput.value).trim();
+
+            if (!query) {
+                statusBox.textContent = "Primero escribe algo para guardar.";
+                return;
+            }
+
+            statusBox.textContent = "Guardando busqueda...";
+
+            try {
+                const params = new URLSearchParams({
+                    query: query,
+                    include_words: includeWords,
+                    include_mode: includeMode,
+                    exclude_words: excludeWords
+                });
+                const response = await fetch(`/save-search?${params.toString()}`, {
+                    method: "POST"
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "No se pudo guardar la busqueda.");
+                }
+
+                statusBox.textContent = `Busqueda guardada. Ultima revision: ${data.ultima_revision}`;
+                await loadSavedSearches();
+            } catch (error) {
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function reviewSavedSearchesNow() {
+            statusBox.textContent = "Revisando busquedas guardadas...";
+
+            try {
+                const response = await fetch("/review-saved-searches", { method: "POST" });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
+                }
+
+                statusBox.textContent = data.message;
+                await loadSavedSearches();
+            } catch (error) {
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function repeatSearch(text, includeWords = "", includeMode = "all", excludeWords = "") {
+            queryInput.value = text;
+            includeWordsInput.value = includeWords;
+            includeModeInput.value = includeMode;
+            excludeWordsInput.value = excludeWords;
+            doSearch();
+        }
+
+        window.repeatSearch = repeatSearch;
+        window.saveCurrentQuery = saveCurrentQuery;
+
+        searchButton.addEventListener("click", doSearch);
+        saveButton.addEventListener("click", () => saveCurrentQuery());
+        reviewSavedButton.addEventListener("click", reviewSavedSearchesNow);
+
+        queryInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                doSearch();
+            }
+        });
+
+        document.querySelectorAll(".example-chip").forEach((button) => {
+            button.addEventListener("click", () => {
+                queryInput.value = button.dataset.query || "";
+                doSearch();
+            });
+        });
+
+        loadSavedSearches();
+    </script>
+</body>
+</html>
+""".strip()
+
+
+@app.get("/", response_class=HTMLResponse)
+def home() -> HTMLResponse:
+    return HTMLResponse(build_home_page())
+
+
+@app.get("/search", response_model=SearchResponse)
+def search(
+    query: str = Query(..., min_length=2, description="Texto a buscar"),
+    include_words: str = Query("", description="Palabras que deben aparecer en el titulo"),
+    include_mode: str = Query("all", description="all o any para las palabras a incluir"),
+    exclude_words: str = Query("", description="Palabras que no deben aparecer en el titulo"),
+) -> SearchResponse:
+    return run_search_logic(
+        query,
+        split_words(include_words),
+        include_mode,
+        split_words(exclude_words),
+    )
+
+
+@app.post("/save-search", response_model=SaveSearchResponse)
+def save_search(
+    query: str = Query(..., min_length=2, description="Busqueda a guardar"),
+    include_words: str = Query("", description="Palabras que deben aparecer en el titulo"),
+    include_mode: str = Query("all", description="all o any para las palabras a incluir"),
+    exclude_words: str = Query("", description="Palabras que no deben aparecer en el titulo"),
+) -> SaveSearchResponse:
+    record = save_search_record(
+        query,
+        split_words(include_words),
+        include_mode,
+        split_words(exclude_words),
+    )
+    return SaveSearchResponse(
+        message="Busqueda guardada correctamente.",
+        query_original=record["query_original"],
+        ultima_revision=record["ultima_revision"],
+    )
+
+
+@app.get("/saved-searches", response_model=SavedSearchListResponse)
+def list_saved_searches() -> SavedSearchListResponse:
+    items = load_saved_searches_raw()
+    response_items = []
+
+    for item in sorted(items, key=lambda value: value.get("query_original", "").lower()):
+        response_items.append(
+            SavedSearchItem(
+                query_original=item.get("query_original", ""),
+                query_mejorada=item.get("query_mejorada", ""),
+                incluir_palabras=list(item.get("incluir_palabras", [])),
+                modo_inclusion=item.get("modo_inclusion", "all"),
+                excluir_palabras=list(item.get("excluir_palabras", [])),
+                guardada_en=item.get("guardada_en", ""),
+                ultima_revision=item.get("ultima_revision", ""),
+                total_productos=int(item.get("total_productos", 0)),
+                chollos_detectados=int(item.get("chollos_detectados", 0)),
+            )
+        )
+
+    return SavedSearchListResponse(busquedas_guardadas=response_items)
+
+
+@app.post("/review-saved-searches")
+def review_saved_searches_now() -> dict[str, Any]:
+    items = review_saved_searches(force=True)
+    return {
+        "message": "Revision completada.",
+        "total_busquedas_guardadas": len(items),
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        reload=False,
+    )
