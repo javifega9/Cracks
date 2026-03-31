@@ -26,8 +26,8 @@ FILE_LOCK = threading.Lock()
 REVIEW_THREAD_STARTED = False
 
 app = FastAPI(
-    title="Buscador de ofertas",
-    description="API simple para buscar productos con SerpAPI y OpenAI.",
+    title="Cracks",
+    description="Aplicacion web para buscar ofertas de productos con FastAPI, SerpAPI y OpenAI.",
     version="1.0.0",
 )
 
@@ -535,7 +535,7 @@ def build_home_page() -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buscador de ofertas</title>
+    <title>Cracks</title>
     <style>
         :root {
             --panel: #fffdf9;
@@ -831,11 +831,11 @@ def build_home_page() -> str:
 <body>
     <div class="wrap">
         <section class="hero">
-            <h1>Buscador de ofertas</h1>
+            <h1>Cracks</h1>
             <p class="subtitle">
                 Escribe lo que quieres comprar y la herramienta buscara productos en Google Shopping,
                 mejorara la consulta con OpenAI, detectara posibles chollos y te dejara guardar busquedas
-                para revisarlas automaticamente una vez al dia mientras el servidor este encendido.
+                en tu navegador para revisarlas facilmente incluso usando Render gratis.
             </p>
 
             <div class="search-bar">
@@ -879,7 +879,7 @@ def build_home_page() -> str:
 
         <section class="section" id="savedSection" style="display:block;">
             <div class="section-header">
-                <h2>Busquedas guardadas</h2>
+                <h2>Busquedas guardadas en este navegador</h2>
                 <button id="reviewSavedButton" class="secondary-button" type="button">Revisar ahora</button>
             </div>
             <div class="saved-grid" id="savedGrid"></div>
@@ -887,6 +887,7 @@ def build_home_page() -> str:
     </div>
 
     <script>
+        const LOCAL_STORAGE_KEY = "cracks_saved_searches";
         const queryInput = document.getElementById("query");
         const includeWordsInput = document.getElementById("includeWords");
         const includeModeInput = document.getElementById("includeMode");
@@ -901,6 +902,7 @@ def build_home_page() -> str:
         const topGrid = document.getElementById("topGrid");
         const allGrid = document.getElementById("allGrid");
         const savedGrid = document.getElementById("savedGrid");
+        let latestSearchData = null;
 
         function escapeHtml(text) {
             return String(text ?? "")
@@ -909,6 +911,50 @@ def build_home_page() -> str:
                 .replaceAll(">", "&gt;")
                 .replaceAll('"', "&quot;")
                 .replaceAll("'", "&#39;");
+        }
+
+        function todayKey() {
+            return new Date().toISOString().slice(0, 10);
+        }
+
+        function nowLocalIso() {
+            return new Date().toLocaleString();
+        }
+
+        function getLocalSavedSearches() {
+            try {
+                const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function setLocalSavedSearches(items) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
+        }
+
+        function upsertLocalSavedSearch(item) {
+            const items = getLocalSavedSearches();
+            const key = JSON.stringify([
+                item.query_original || "",
+                (item.incluir_palabras || []).join(","),
+                item.modo_inclusion || "all",
+                (item.excluir_palabras || []).join(",")
+            ]);
+            const nextItems = items.filter((saved) => {
+                const savedKey = JSON.stringify([
+                    saved.query_original || "",
+                    (saved.incluir_palabras || []).join(","),
+                    saved.modo_inclusion || "all",
+                    (saved.excluir_palabras || []).join(",")
+                ]);
+                return savedKey !== key;
+            });
+            nextItems.push(item);
+            nextItems.sort((a, b) => (a.query_original || "").localeCompare(b.query_original || ""));
+            setLocalSavedSearches(nextItems);
         }
 
         function renderCard(product, rank) {
@@ -956,23 +1002,14 @@ def build_home_page() -> str:
         }
 
         async function loadSavedSearches() {
-            try {
-                const response = await fetch("/saved-searches");
-                const data = await response.json();
+            const items = getLocalSavedSearches();
 
-                if (!response.ok) {
-                    throw new Error(data.detail || "No se pudieron cargar las busquedas guardadas.");
-                }
-
-                if (!data.busquedas_guardadas.length) {
-                    savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div></article>`;
-                    return;
-                }
-
-                savedGrid.innerHTML = data.busquedas_guardadas.map(renderSavedSearch).join("");
-            } catch (error) {
-                savedGrid.innerHTML = `<article class="card"><div class="title">Error</div><div class="saved-meta">${escapeHtml(error.message)}</div></article>`;
+            if (!items.length) {
+                savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div><div class="saved-meta">Se guardan en este navegador, asi que funcionan bien en Render gratis.</div></article>`;
+                return;
             }
+
+            savedGrid.innerHTML = items.map(renderSavedSearch).join("");
         }
 
         async function doSearch() {
@@ -1007,6 +1044,7 @@ def build_home_page() -> str:
                     throw new Error(data.detail || "Ha ocurrido un error.");
                 }
 
+                latestSearchData = data;
                 const chollos = data.productos.filter((product) => product.es_chollo).length;
                 const average = data.precio_medio ? `${data.precio_medio} EUR` : "No disponible";
 
@@ -1057,22 +1095,46 @@ def build_home_page() -> str:
             statusBox.textContent = "Guardando busqueda...";
 
             try {
-                const params = new URLSearchParams({
-                    query: query,
-                    include_words: includeWords,
-                    include_mode: includeMode,
-                    exclude_words: excludeWords
-                });
-                const response = await fetch(`/save-search?${params.toString()}`, {
-                    method: "POST"
-                });
-                const data = await response.json();
+                let data = latestSearchData;
 
-                if (!response.ok) {
-                    throw new Error(data.detail || "No se pudo guardar la busqueda.");
+                const latestMatchesCurrent =
+                    data &&
+                    data.query_original === query &&
+                    (data.incluir_palabras || []).join(", ") === includeWords &&
+                    (data.modo_inclusion || "all") === includeMode &&
+                    (data.excluir_palabras || []).join(", ") === excludeWords;
+
+                if (!latestMatchesCurrent) {
+                    const params = new URLSearchParams({
+                        query: query,
+                        include_words: includeWords,
+                        include_mode: includeMode,
+                        exclude_words: excludeWords
+                    });
+                    const response = await fetch(`/search?${params.toString()}`);
+                    data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.detail || "No se pudo guardar la busqueda.");
+                    }
                 }
 
-                statusBox.textContent = `Busqueda guardada. Ultima revision: ${data.ultima_revision}`;
+                const item = {
+                    query_original: data.query_original,
+                    query_mejorada: data.query_mejorada,
+                    incluir_palabras: data.incluir_palabras || [],
+                    modo_inclusion: data.modo_inclusion || "all",
+                    excluir_palabras: data.excluir_palabras || [],
+                    guardada_en: nowLocalIso(),
+                    ultima_revision: nowLocalIso(),
+                    ultima_revision_dia: todayKey(),
+                    total_productos: (data.productos || []).length,
+                    chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
+                };
+
+                upsertLocalSavedSearch(item);
+                latestSearchData = data;
+                statusBox.textContent = `Busqueda guardada en este navegador. Ultima revision: ${item.ultima_revision}`;
                 await loadSavedSearches();
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
@@ -1083,18 +1145,56 @@ def build_home_page() -> str:
             statusBox.textContent = "Revisando busquedas guardadas...";
 
             try {
-                const response = await fetch("/review-saved-searches", { method: "POST" });
-                const data = await response.json();
+                const items = getLocalSavedSearches();
 
-                if (!response.ok) {
-                    throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
+                for (const item of items) {
+                    const params = new URLSearchParams({
+                        query: item.query_original || "",
+                        include_words: (item.incluir_palabras || []).join(", "),
+                        include_mode: item.modo_inclusion || "all",
+                        exclude_words: (item.excluir_palabras || []).join(", ")
+                    });
+                    const response = await fetch(`/search?${params.toString()}`);
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
+                    }
+
+                    upsertLocalSavedSearch({
+                        query_original: data.query_original,
+                        query_mejorada: data.query_mejorada,
+                        incluir_palabras: data.incluir_palabras || [],
+                        modo_inclusion: data.modo_inclusion || "all",
+                        excluir_palabras: data.excluir_palabras || [],
+                        guardada_en: item.guardada_en || nowLocalIso(),
+                        ultima_revision: nowLocalIso(),
+                        ultima_revision_dia: todayKey(),
+                        total_productos: (data.productos || []).length,
+                        chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
+                    });
                 }
 
-                statusBox.textContent = data.message;
+                statusBox.textContent = "Revision local completada.";
                 await loadSavedSearches();
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
             }
+        }
+
+        async function runAutomaticLocalReviewIfNeeded() {
+            const items = getLocalSavedSearches();
+
+            if (!items.length) {
+                return;
+            }
+
+            const needsReview = items.some((item) => item.ultima_revision_dia !== todayKey());
+            if (!needsReview) {
+                return;
+            }
+
+            await reviewSavedSearchesNow();
         }
 
         function repeatSearch(text, includeWords = "", includeMode = "all", excludeWords = "") {
@@ -1126,6 +1226,7 @@ def build_home_page() -> str:
         });
 
         loadSavedSearches();
+        runAutomaticLocalReviewIfNeeded();
     </script>
 </body>
 </html>
