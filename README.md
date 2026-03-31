@@ -20,3 +20,9 @@ Web publica:
 - OpenAI API
 - SerpAPI
 - Render
+
+## Variables recomendadas
+
+- OPENAI_API_KEY
+- SERPAPI_KEY
+- AMAZON_AFFILIATE_TAG

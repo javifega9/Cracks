@@ -6,10 +6,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
@@ -24,6 +25,13 @@ REVIEW_INTERVAL_SECONDS = int(os.getenv("REVIEW_INTERVAL_SECONDS", "3600"))
 SAVED_SEARCHES_FILE = Path(__file__).with_name("saved_searches.json")
 FILE_LOCK = threading.Lock()
 REVIEW_THREAD_STARTED = False
+AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "").strip()
+AMAZON_DOMAIN = os.getenv("AMAZON_DOMAIN", "amazon.es").strip().lower()
+AMAZON_CACHE: dict[str, str | None] = {}
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "300"))
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "30"))
+RATE_LIMIT_LOCK = threading.Lock()
+RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
 
 app = FastAPI(
     title="Cracks",
@@ -38,6 +46,10 @@ class Product(BaseModel):
     tienda: str | None = None
     link: str
     es_chollo: bool = False
+    imagen: str | None = None
+    link_original: str | None = None
+    es_amazon: bool = False
+    es_afiliado_amazon: bool = False
 
 
 class SearchResponse(BaseModel):
@@ -93,6 +105,39 @@ def get_env(name: str) -> str:
 
 def get_openai_client() -> OpenAI:
     return OpenAI(api_key=get_env("OPENAI_API_KEY"))
+
+
+def get_client_identifier(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if forwarded_for:
+        return forwarded_for
+
+    if request.client and request.client.host:
+        return request.client.host
+
+    return "unknown"
+
+
+def enforce_rate_limit(request: Request) -> None:
+    identifier = get_client_identifier(request)
+    if identifier in {"127.0.0.1", "::1", "localhost"}:
+        return
+
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW_SECONDS
+
+    with RATE_LIMIT_LOCK:
+        bucket = RATE_LIMIT_BUCKETS.get(identifier, [])
+        bucket = [timestamp for timestamp in bucket if timestamp >= window_start]
+
+        if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+            raise HTTPException(
+                status_code=429,
+                detail="Demasiadas busquedas en poco tiempo. Espera un momento e intentalo de nuevo.",
+            )
+
+        bucket.append(now)
+        RATE_LIMIT_BUCKETS[identifier] = bucket
 
 
 def extract_json(text: str) -> dict[str, Any]:
@@ -197,6 +242,105 @@ def filter_products_by_title(
     return filtered
 
 
+def is_amazon_link(url: str | None) -> bool:
+    if not url:
+        return False
+
+    hostname = urlparse(url).netloc.lower()
+    return "amazon." in hostname
+
+
+def build_amazon_affiliate_link(url: str) -> str:
+    if not AMAZON_AFFILIATE_TAG or not is_amazon_link(url):
+        return url
+
+    parsed = urlparse(url)
+    query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query_params["tag"] = AMAZON_AFFILIATE_TAG
+    new_query = urlencode(query_params, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+def looks_like_amazon_product(product: dict[str, Any]) -> bool:
+    store = str(product.get("tienda") or "").lower()
+    link = str(product.get("link") or "")
+    return "amazon" in store or is_amazon_link(link)
+
+
+def search_google_web(query: str) -> dict[str, Any]:
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": get_env("SERPAPI_KEY"),
+        "gl": SHOPPING_GL,
+        "hl": SHOPPING_HL,
+        "num": 5,
+    }
+
+    response = requests.get(SERPAPI_URL, params=params, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def find_amazon_link_for_title(title: str) -> str | None:
+    cleaned_title = " ".join(str(title).split()).strip()
+    if not cleaned_title:
+        return None
+
+    cache_key = cleaned_title.lower()
+    if cache_key in AMAZON_CACHE:
+        return AMAZON_CACHE[cache_key]
+
+    try:
+        queries = [
+            f'site:{AMAZON_DOMAIN} "{cleaned_title}"',
+            f'site:{AMAZON_DOMAIN} {cleaned_title}',
+        ]
+
+        for query in queries:
+            data = search_google_web(query)
+            organic_results = data.get("organic_results", [])
+            for item in organic_results:
+                link = item.get("link")
+                if isinstance(link, str) and AMAZON_DOMAIN in link.lower():
+                    final_link = build_amazon_affiliate_link(link)
+                    AMAZON_CACHE[cache_key] = final_link
+                    return final_link
+    except requests.RequestException:
+        pass
+
+    AMAZON_CACHE[cache_key] = None
+    return None
+
+
+def enrich_products_with_amazon(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not products or not AMAZON_AFFILIATE_TAG:
+        return products
+
+    for product in products:
+        original_link = str(product.get("link") or "")
+        product["link_original"] = original_link
+        product["es_amazon"] = False
+        product["es_afiliado_amazon"] = False
+
+        if looks_like_amazon_product(product):
+            affiliate_link = build_amazon_affiliate_link(original_link)
+            product["link"] = affiliate_link
+            product["tienda"] = "Amazon"
+            product["es_amazon"] = True
+            product["es_afiliado_amazon"] = affiliate_link != original_link
+            continue
+
+        amazon_link = find_amazon_link_for_title(product.get("titulo", ""))
+        if amazon_link:
+            product["link"] = amazon_link
+            product["tienda"] = "Amazon"
+            product["es_amazon"] = True
+            product["es_afiliado_amazon"] = True
+
+    return products
+
+
 def search_google_shopping(query: str) -> list[dict[str, Any]]:
     params = {
         "engine": "google_shopping",
@@ -225,6 +369,7 @@ def search_google_shopping(query: str) -> list[dict[str, Any]]:
         store = item.get("source") or item.get("merchant_name")
         link = item.get("link") or item.get("product_link")
         numeric_price = item.get("extracted_price")
+        image = item.get("thumbnail") or item.get("product_thumbnail")
 
         if not isinstance(numeric_price, (int, float)):
             numeric_price = extract_numeric_price(price)
@@ -240,6 +385,10 @@ def search_google_shopping(query: str) -> list[dict[str, Any]]:
                 "link": link,
                 "precio_numerico": numeric_price,
                 "es_chollo": False,
+                "imagen": image,
+                "link_original": link,
+                "es_amazon": False,
+                "es_afiliado_amazon": False,
             }
         )
 
@@ -299,6 +448,7 @@ def choose_top_3_with_openai(
                 "precio": product["precio"],
                 "tienda": product["tienda"],
                 "es_chollo": product.get("es_chollo", False),
+                "es_amazon": product.get("es_amazon", False),
             }
         )
 
@@ -350,6 +500,10 @@ def clean_product(product: dict[str, Any]) -> Product:
         tienda=product.get("tienda"),
         link=product["link"],
         es_chollo=bool(product.get("es_chollo", False)),
+        imagen=product.get("imagen"),
+        link_original=product.get("link_original"),
+        es_amazon=bool(product.get("es_amazon", False)),
+        es_afiliado_amazon=bool(product.get("es_afiliado_amazon", False)),
     )
 
 
@@ -371,6 +525,7 @@ def run_search_logic(
     improved_query = improve_query_with_openai(query)
     products = search_google_shopping(improved_query)
     products = filter_products_by_title(products, include_words, include_mode, exclude_words)
+    products = enrich_products_with_amazon(products)
     average_price = mark_bargains(products)
     top_3 = choose_top_3_with_openai(query, improved_query, average_price, products)
 
@@ -959,6 +1114,9 @@ def build_home_page() -> str:
             border-radius: 24px;
             padding: 20px;
             box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
         }
 
         .top-card {
@@ -992,20 +1150,18 @@ def build_home_page() -> str:
         .title {
             font-size: 1.02rem;
             font-weight: 700;
-            margin-bottom: 10px;
             line-height: 1.45;
         }
 
         .price {
             font-size: 1.2rem;
             font-weight: 800;
-            margin-bottom: 6px;
         }
 
         .store,
         .saved-meta {
             color: var(--muted);
-            margin-bottom: 14px;
+            margin-bottom: 0;
         }
 
         .card a {
@@ -1016,6 +1172,72 @@ def build_home_page() -> str:
 
         .card a:hover {
             text-decoration: underline;
+        }
+
+        .product-media {
+            aspect-ratio: 4 / 3;
+            border-radius: 18px;
+            overflow: hidden;
+            background:
+                linear-gradient(135deg, rgba(16, 61, 96, 0.08) 0%, rgba(199, 109, 43, 0.08) 100%),
+                #f8f3ec;
+            border: 1px solid rgba(142, 111, 73, 0.12);
+            display: grid;
+            place-items: center;
+        }
+
+        .product-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .product-media-fallback {
+            color: var(--muted);
+            font-size: 0.92rem;
+            text-align: center;
+            padding: 18px;
+            line-height: 1.5;
+        }
+
+        .card-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-top: auto;
+        }
+
+        .card-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 16px;
+            border-radius: 14px;
+            background: var(--primary-soft);
+            border: 1px solid rgba(199, 109, 43, 0.18);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .card-link:hover {
+            text-decoration: none;
+            background: #ffe8cd;
+        }
+
+        .link-note {
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.45;
         }
 
         .saved-actions {
@@ -1289,14 +1511,37 @@ def build_home_page() -> str:
             if (product.es_chollo) {
                 badges.push(`<div class="badge bargain-badge">Chollo</div>`);
             }
+            if (product.es_amazon) {
+                badges.push(`<div class="badge">Amazon</div>`);
+            }
+            if (product.es_afiliado_amazon) {
+                badges.push(`<div class="badge">Afiliado</div>`);
+            }
+
+            const imageMarkup = product.imagen
+                ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.titulo)}">`
+                : `<div class="product-media-fallback">Vista previa no disponible</div>`;
+
+            const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver producto";
+            const linkNote = product.es_afiliado_amazon
+                ? "Enlace de Amazon con tu tag de afiliado."
+                : product.link_original && product.link_original !== product.link
+                    ? "Se encontro una opcion equivalente en Amazon."
+                    : "Enlace directo al producto encontrado.";
 
             return `
                 <article class="card ${rank ? "top-card" : ""}">
                     <div class="badge-row">${badges.join("")}</div>
-                    <div class="title">${escapeHtml(product.titulo)}</div>
-                    <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
-                    <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
-                    <a href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">Ver producto</a>
+                    <div class="product-media">${imageMarkup}</div>
+                    <div class="card-content">
+                        <div class="title">${escapeHtml(product.titulo)}</div>
+                        <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="link-note">${escapeHtml(linkNote)}</div>
+                        <a class="card-link" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>
+                    </div>
                 </article>
             `;
         }
@@ -1564,11 +1809,13 @@ def home() -> HTMLResponse:
 
 @app.get("/search", response_model=SearchResponse)
 def search(
+    request: Request,
     query: str = Query(..., min_length=2, description="Texto a buscar"),
     include_words: str = Query("", description="Palabras que deben aparecer en el titulo"),
     include_mode: str = Query("all", description="all o any para las palabras a incluir"),
     exclude_words: str = Query("", description="Palabras que no deben aparecer en el titulo"),
 ) -> SearchResponse:
+    enforce_rate_limit(request)
     return run_search_logic(
         query,
         split_words(include_words),
