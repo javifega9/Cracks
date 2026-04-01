@@ -1509,7 +1509,7 @@ def build_home_page() -> str:
                     </div>
 
                     <p class="subtitle">
-                        encuentra las mejores ofertas en segundo
+                        Encuentra las mejores ofertas de internet en segundos
                     </p>
 
                     <div class="hero-points">
@@ -1571,6 +1571,13 @@ def build_home_page() -> str:
         const compareStrip = document.getElementById("compareStrip");
         const topGrid = document.getElementById("topGrid");
         const savedGrid = document.getElementById("savedGrid");
+        const rotatingPlaceholders = [
+            "iphone 15",
+            "cafetera nespresso",
+            "portatil lenovo barato",
+            "zapatillas running nike",
+            "aspiradora sin cable"
+        ];
         let latestSearchData = null;
 
         function escapeHtml(text) {
@@ -1588,6 +1595,26 @@ def build_home_page() -> str:
 
         function nowLocalIso() {
             return new Date().toLocaleString();
+        }
+
+        function startPlaceholderRotation() {
+            let placeholderIndex = 0;
+
+            const applyPlaceholder = () => {
+                if (document.activeElement === queryInput || queryInput.value.trim()) {
+                    return;
+                }
+                queryInput.setAttribute("placeholder", rotatingPlaceholders[placeholderIndex]);
+            };
+
+            applyPlaceholder();
+
+            setInterval(() => {
+                placeholderIndex = (placeholderIndex + 1) % rotatingPlaceholders.length;
+                applyPlaceholder();
+            }, 2400);
+
+            queryInput.addEventListener("blur", applyPlaceholder);
         }
 
         function scrollResultsIntoView() {
@@ -1944,6 +1971,7 @@ def build_home_page() -> str:
         });
 
         loadSavedSearches();
+        startPlaceholderRotation();
         runAutomaticLocalReviewIfNeeded();
     </script>
 </body>
