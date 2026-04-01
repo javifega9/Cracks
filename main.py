@@ -12,9 +12,15 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from openai import OpenAI
 from pydantic import BaseModel
+
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
 
 
 SERPAPI_URL = "https://serpapi.com/search.json"
@@ -26,6 +32,8 @@ AMAZON_AFFILIATE_TAG = os.getenv("AMAZON_AFFILIATE_TAG", "").strip()
 AMAZON_DOMAIN = os.getenv("AMAZON_DOMAIN", "amazon.es").strip().lower()
 MAX_SHOPPING_RESULTS = int(os.getenv("MAX_SHOPPING_RESULTS", "10"))
 AMAZON_LOOKUP_MAX_PRODUCTS = int(os.getenv("AMAZON_LOOKUP_MAX_PRODUCTS", "4"))
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DATABASE_CONNECT_TIMEOUT = int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5"))
 AMAZON_CACHE: dict[str, str | None] = {}
 SEARCH_CACHE_TTL_SECONDS = int(os.getenv("SEARCH_CACHE_TTL_SECONDS", "900"))
 SEARCH_CACHE_LOCK = threading.Lock()
@@ -40,6 +48,15 @@ app = FastAPI(
     description="Aplicacion web para buscar ofertas de productos con FastAPI, SerpAPI y OpenAI.",
     version="1.0.0",
 )
+app.state.database_ready = False
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    try:
+        initialize_database()
+    except Exception:
+        app.state.database_ready = False
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -84,6 +101,23 @@ class SearchResponse(BaseModel):
     top_3_mejores_opciones: list[Product]
 
 
+class SavedSearchPayload(BaseModel):
+    visitor_id: str
+    query_original: str
+    query_mejorada: str
+    total_productos: int = 0
+    chollos_detectados: int = 0
+
+
+class SavedSearchRecord(BaseModel):
+    query_original: str
+    query_mejorada: str
+    guardada_en: str
+    ultima_revision: str
+    total_productos: int
+    chollos_detectados: int
+
+
 def get_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -96,6 +130,209 @@ def get_env(name: str) -> str:
 
 def get_openai_client() -> OpenAI:
     return OpenAI(api_key=get_env("OPENAI_API_KEY"))
+
+
+def is_database_configured() -> bool:
+    return bool(DATABASE_URL and psycopg is not None)
+
+
+def is_database_ready() -> bool:
+    return bool(getattr(app.state, "database_ready", False))
+
+
+def get_db_connection():
+    if not is_database_ready():
+        raise HTTPException(
+            status_code=503,
+            detail="La base de datos no esta disponible en este momento.",
+        )
+
+    return psycopg.connect(
+        DATABASE_URL,
+        autocommit=True,
+        connect_timeout=DATABASE_CONNECT_TIMEOUT,
+    )
+
+
+def build_saved_search_key(query_original: str) -> str:
+    return query_original.strip().lower()
+
+
+def format_datetime_value(value: Any) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def initialize_database() -> None:
+    if not is_database_configured():
+        app.state.database_ready = False
+        return
+
+    with psycopg.connect(
+        DATABASE_URL,
+        autocommit=True,
+        connect_timeout=DATABASE_CONNECT_TIMEOUT,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS saved_searches (
+                    id BIGSERIAL PRIMARY KEY,
+                    visitor_id TEXT NOT NULL,
+                    search_key TEXT NOT NULL,
+                    query_original TEXT NOT NULL,
+                    query_mejorada TEXT NOT NULL,
+                    total_productos INTEGER NOT NULL DEFAULT 0,
+                    chollos_detectados INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(visitor_id, search_key)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS amazon_clicks (
+                    id BIGSERIAL PRIMARY KEY,
+                    visitor_id TEXT,
+                    client_identifier TEXT,
+                    query_original TEXT,
+                    product_title TEXT,
+                    amazon_link TEXT NOT NULL,
+                    clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_saved_searches_visitor
+                ON saved_searches(visitor_id, updated_at DESC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_amazon_clicks_clicked_at
+                ON amazon_clicks(clicked_at DESC)
+                """
+            )
+
+    app.state.database_ready = True
+
+
+def save_search_to_database(payload: SavedSearchPayload) -> SavedSearchRecord:
+    with get_db_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO saved_searches (
+                    visitor_id,
+                    search_key,
+                    query_original,
+                    query_mejorada,
+                    total_productos,
+                    chollos_detectados
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (visitor_id, search_key)
+                DO UPDATE SET
+                    query_mejorada = EXCLUDED.query_mejorada,
+                    total_productos = EXCLUDED.total_productos,
+                    chollos_detectados = EXCLUDED.chollos_detectados,
+                    updated_at = NOW()
+                RETURNING
+                    query_original,
+                    query_mejorada,
+                    created_at,
+                    updated_at,
+                    total_productos,
+                    chollos_detectados
+                """,
+                (
+                    payload.visitor_id,
+                    build_saved_search_key(payload.query_original),
+                    payload.query_original,
+                    payload.query_mejorada,
+                    payload.total_productos,
+                    payload.chollos_detectados,
+                ),
+            )
+            row = cursor.fetchone()
+
+    return SavedSearchRecord(
+        query_original=row[0],
+        query_mejorada=row[1],
+        guardada_en=format_datetime_value(row[2]),
+        ultima_revision=format_datetime_value(row[3]),
+        total_productos=int(row[4]),
+        chollos_detectados=int(row[5]),
+    )
+
+
+def load_saved_searches_from_database(visitor_id: str) -> list[SavedSearchRecord]:
+    with get_db_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    query_original,
+                    query_mejorada,
+                    created_at,
+                    updated_at,
+                    total_productos,
+                    chollos_detectados
+                FROM saved_searches
+                WHERE visitor_id = %s
+                ORDER BY updated_at DESC, query_original ASC
+                """,
+                (visitor_id,),
+            )
+            rows = cursor.fetchall()
+
+    return [
+        SavedSearchRecord(
+            query_original=row[0],
+            query_mejorada=row[1],
+            guardada_en=format_datetime_value(row[2]),
+            ultima_revision=format_datetime_value(row[3]),
+            total_productos=int(row[4]),
+            chollos_detectados=int(row[5]),
+        )
+        for row in rows
+    ]
+
+
+def record_amazon_click(
+    visitor_id: str | None,
+    client_identifier: str,
+    query_original: str | None,
+    product_title: str | None,
+    amazon_link: str,
+) -> None:
+    if not is_database_ready() or not is_amazon_link(amazon_link):
+        return
+
+    with get_db_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO amazon_clicks (
+                    visitor_id,
+                    client_identifier,
+                    query_original,
+                    product_title,
+                    amazon_link
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    visitor_id or None,
+                    client_identifier,
+                    query_original or None,
+                    product_title or None,
+                    amazon_link,
+                ),
+            )
 
 
 def get_client_identifier(request: Request) -> str:
@@ -264,6 +501,11 @@ def is_amazon_link(url: str | None) -> bool:
 
     hostname = urlparse(url).netloc.lower()
     return "amazon." in hostname
+
+
+def is_valid_outbound_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 def build_amazon_affiliate_link(url: str) -> str:
@@ -783,6 +1025,7 @@ def run_search_logic(
 
 
 def build_home_page() -> str:
+    server_storage_enabled = "true" if is_database_ready() else "false"
     return """
 <!DOCTYPE html>
 <html lang="es">
@@ -1654,7 +1897,7 @@ def build_home_page() -> str:
 
         <section class="section" id="savedSection" style="display:block;">
             <div class="section-header">
-                <h2>Busquedas guardadas en este navegador</h2>
+                <h2>Busquedas guardadas</h2>
                 <button id="reviewSavedButton" class="secondary-button" type="button">Revisar ahora</button>
             </div>
             <div class="saved-grid" id="savedGrid"></div>
@@ -1667,6 +1910,8 @@ def build_home_page() -> str:
 
     <script>
         const LOCAL_STORAGE_KEY = "cracks_saved_searches";
+        const VISITOR_STORAGE_KEY = "cracks_visitor_id";
+        const serverStorageEnabled = __SERVER_STORAGE_ENABLED__;
         const queryInput = document.getElementById("query");
         const queryGhost = document.getElementById("queryGhost");
         const searchButton = document.getElementById("searchButton");
@@ -1693,6 +1938,31 @@ def build_home_page() -> str:
         let latestSearchData = null;
         let loadingInterval = null;
         let loadingStepInterval = null;
+
+        function generateVisitorId() {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                return window.crypto.randomUUID();
+            }
+
+            return `visitor-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        function getVisitorId() {
+            try {
+                const existing = localStorage.getItem(VISITOR_STORAGE_KEY);
+                if (existing) {
+                    return existing;
+                }
+
+                const created = generateVisitorId();
+                localStorage.setItem(VISITOR_STORAGE_KEY, created);
+                return created;
+            } catch (error) {
+                return generateVisitorId();
+            }
+        }
+
+        const visitorId = getVisitorId();
 
         function escapeHtml(text) {
             return String(text ?? "")
@@ -1848,6 +2118,16 @@ def build_home_page() -> str:
             }
         }
 
+        function buildTrackedLink(product) {
+            const params = new URLSearchParams({
+                url: product.link || "",
+                title: product.titulo || "",
+                query: (latestSearchData && latestSearchData.query_original) || queryInput.value.trim() || "",
+                visitor_id: visitorId
+            });
+            return `/out?${params.toString()}`;
+        }
+
         function upsertLocalSavedSearch(item) {
             const items = getLocalSavedSearches();
             const key = JSON.stringify([
@@ -1868,6 +2148,40 @@ def build_home_page() -> str:
             nextItems.push(item);
             nextItems.sort((a, b) => (a.query_original || "").localeCompare(b.query_original || ""));
             setLocalSavedSearches(nextItems);
+        }
+
+        async function fetchServerSavedSearches() {
+            const response = await fetch(`/saved-searches?visitor_id=${encodeURIComponent(visitorId)}`);
+            const data = await readJsonResponse(response);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "No se pudieron cargar las busquedas guardadas.");
+            }
+
+            return Array.isArray(data.items) ? data.items : [];
+        }
+
+        async function persistServerSavedSearch(item) {
+            const response = await fetch("/save-search", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    visitor_id: visitorId,
+                    query_original: item.query_original,
+                    query_mejorada: item.query_mejorada,
+                    total_productos: item.total_productos,
+                    chollos_detectados: item.chollos_detectados
+                })
+            });
+            const data = await readJsonResponse(response);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "No se pudo guardar la busqueda.");
+            }
+
+            return data;
         }
 
         function renderCard(product, rank) {
@@ -1909,7 +2223,7 @@ def build_home_page() -> str:
                         <div class="product-explanation">${escapeHtml(explanation)}</div>
                     </div>
                     <div class="card-footer">
-                        <a class="card-link" href="${escapeHtml(product.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>
+                        <a class="card-link" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>
                         <div class="link-note">${escapeHtml(linkNote)}</div>
                     </div>
                 </article>
@@ -1976,10 +2290,20 @@ def build_home_page() -> str:
         }
 
         async function loadSavedSearches() {
-            const items = getLocalSavedSearches();
+            let items = [];
+
+            if (serverStorageEnabled) {
+                try {
+                    items = await fetchServerSavedSearches();
+                } catch (error) {
+                    items = getLocalSavedSearches();
+                }
+            } else {
+                items = getLocalSavedSearches();
+            }
 
             if (!items.length) {
-                savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div><div class="saved-meta">Se guardan en este navegador, asi que funcionan bien en Render gratis.</div></article>`;
+                savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div><div class="saved-meta">${serverStorageEnabled ? "Se guardan en la base de datos para este navegador." : "Se guardan en este navegador, asi que funcionan bien en Render gratis."}</div></article>`;
                 return;
             }
 
@@ -2090,9 +2414,18 @@ def build_home_page() -> str:
                     chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
                 };
 
-                upsertLocalSavedSearch(item);
+                if (serverStorageEnabled) {
+                    try {
+                        await persistServerSavedSearch(item);
+                    } catch (error) {
+                        upsertLocalSavedSearch(item);
+                    }
+                } else {
+                    upsertLocalSavedSearch(item);
+                }
+
                 latestSearchData = data;
-                statusBox.textContent = `Busqueda guardada en este navegador. Ultima revision: ${item.ultima_revision}`;
+                statusBox.textContent = `Busqueda guardada. Ultima revision: ${item.ultima_revision}`;
                 await loadSavedSearches();
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
@@ -2103,7 +2436,9 @@ def build_home_page() -> str:
             statusBox.textContent = "Revisando busquedas guardadas...";
 
             try {
-                const items = getLocalSavedSearches();
+                const items = serverStorageEnabled
+                    ? await fetchServerSavedSearches()
+                    : getLocalSavedSearches();
 
                 for (const item of items) {
                     const params = new URLSearchParams({
@@ -2116,7 +2451,7 @@ def build_home_page() -> str:
                         throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
                     }
 
-                    upsertLocalSavedSearch({
+                    const refreshedItem = {
                         query_original: data.query_original,
                         query_mejorada: data.query_mejorada,
                         incluir_palabras: [],
@@ -2127,10 +2462,20 @@ def build_home_page() -> str:
                         ultima_revision_dia: todayKey(),
                         total_productos: (data.productos || []).length,
                         chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
-                    });
+                    };
+
+                    if (serverStorageEnabled) {
+                        try {
+                            await persistServerSavedSearch(refreshedItem);
+                        } catch (error) {
+                            upsertLocalSavedSearch(refreshedItem);
+                        }
+                    } else {
+                        upsertLocalSavedSearch(refreshedItem);
+                    }
                 }
 
-                statusBox.textContent = "Revision local completada.";
+                statusBox.textContent = "Revision completada.";
                 await loadSavedSearches();
             } catch (error) {
                 statusBox.textContent = `Error: ${error.message}`;
@@ -2170,13 +2515,23 @@ def build_home_page() -> str:
             }
         });
 
+        document.addEventListener("click", (event) => {
+            const spotlightLink = event.target.closest(".spotlight-button");
+            if (!spotlightLink || !latestSearchData || !latestSearchData.top_3_mejores_opciones?.length) {
+                return;
+            }
+
+            event.preventDefault();
+            window.open(buildTrackedLink(latestSearchData.top_3_mejores_opciones[0]), "_blank", "noopener,noreferrer");
+        });
+
         loadSavedSearches();
         startPlaceholderRotation();
         runAutomaticLocalReviewIfNeeded();
     </script>
 </body>
 </html>
-""".strip()
+""".strip().replace("__SERVER_STORAGE_ENABLED__", server_storage_enabled)
 
 
 @app.get("/logo.svg")
@@ -2188,6 +2543,53 @@ def logo_svg() -> FileResponse:
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
     return HTMLResponse(build_home_page())
+
+
+@app.get("/saved-searches")
+def saved_searches(visitor_id: str = Query(..., min_length=8)) -> dict[str, list[dict[str, Any]]]:
+    if not is_database_ready():
+        return {"items": []}
+
+    items = load_saved_searches_from_database(visitor_id)
+    return {"items": [model_to_dict(item) for item in items]}
+
+
+@app.post("/save-search")
+def save_search(payload: SavedSearchPayload) -> dict[str, Any]:
+    if not is_database_ready():
+        raise HTTPException(
+            status_code=503,
+            detail="La base de datos no esta disponible para guardar busquedas.",
+        )
+
+    item = save_search_to_database(payload)
+    return model_to_dict(item)
+
+
+@app.get("/out")
+def outbound_click(
+    request: Request,
+    url: str = Query(..., description="Destino final del producto"),
+    title: str = Query("", description="Titulo del producto"),
+    query: str = Query("", description="Busqueda original"),
+    visitor_id: str = Query("", description="Identificador del navegador"),
+) -> RedirectResponse:
+    if not is_valid_outbound_url(url):
+        raise HTTPException(status_code=400, detail="El enlace de salida no es valido.")
+
+    if is_amazon_link(url):
+        try:
+            record_amazon_click(
+                visitor_id=visitor_id or None,
+                client_identifier=get_client_identifier(request),
+                query_original=query or None,
+                product_title=title or None,
+                amazon_link=url,
+            )
+        except Exception:
+            pass
+
+    return RedirectResponse(url=url, status_code=307)
 
 
 @app.get("/search", response_model=SearchResponse)
