@@ -947,7 +947,7 @@ def build_home_page() -> str:
             width: min(100%, 960px);
             display: grid;
             justify-items: center;
-            gap: 14px;
+            gap: 18px;
             text-align: center;
         }
 
@@ -962,41 +962,37 @@ def build_home_page() -> str:
 
         .subtitle {
             margin: 0;
-            color: var(--muted);
-            font-size: 0.98rem;
-            font-weight: 500;
+            color: rgba(17, 17, 17, 0.78);
+            font-size: 1.02rem;
+            font-weight: 600;
             line-height: 1.5;
-            max-width: 760px;
-            opacity: 0.8;
+            max-width: 720px;
+            letter-spacing: -0.01em;
         }
 
-        .hero-points {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-            width: min(100%, 920px);
-        }
-
-        .hero-point {
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 248, 214, 0.72) 100%);
-            border: 1px solid rgba(255, 214, 0, 0.16);
-            border-radius: 20px;
-            padding: 16px 18px;
-            box-shadow: 0 12px 28px rgba(31, 27, 22, 0.045);
+        .how-it-works {
+            width: min(100%, 840px);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 250, 228, 0.88) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.18);
+            border-radius: 24px;
+            padding: 20px 22px;
+            box-shadow: 0 16px 34px rgba(17, 17, 17, 0.05);
             text-align: left;
         }
 
-        .hero-point strong {
-            display: block;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
+        .how-it-works-title {
+            margin: 0 0 8px;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
             color: #111111;
         }
 
-        .hero-point span {
+        .how-it-works-text {
+            margin: 0;
             color: var(--muted);
-            font-size: 0.88rem;
-            line-height: 1.45;
+            font-size: 0.95rem;
+            line-height: 1.65;
         }
 
         .search-shell {
@@ -1519,10 +1515,6 @@ def build_home_page() -> str:
                 flex-direction: column;
             }
 
-            .hero-points {
-                grid-template-columns: 1fr;
-            }
-
             button {
                 width: 100%;
             }
@@ -1567,6 +1559,10 @@ def build_home_page() -> str:
             <div class="hero-grid">
                 <div class="hero-main">
                     <h1>CRACKS</h1>
+                    <p class="subtitle">
+                        Encuentra las mejores ofertas de internet en segundos
+                    </p>
+
                     <div class="search-shell">
                         <div class="search-bar">
                             <div class="query-wrap">
@@ -1584,23 +1580,13 @@ def build_home_page() -> str:
                         <div class="meta" id="meta"></div>
                     </div>
 
-                    <p class="subtitle">
-                        Encuentra las mejores ofertas de internet en segundos
-                    </p>
-
-                    <div class="hero-points">
-                        <div class="hero-point">
-                            <strong>Busqueda directa</strong>
-                            <span>Escribe lo que quieres comprar y ve solo tres opciones claras.</span>
-                        </div>
-                        <div class="hero-point">
-                            <strong>Top 3 util</strong>
-                            <span>Cracks destaca mejor opcion, calidad-precio y la mas barata.</span>
-                        </div>
-                        <div class="hero-point">
-                            <strong>Guardado simple</strong>
-                            <span>Guarda tus busquedas en este navegador y vuelve cuando quieras.</span>
-                        </div>
+                    <div class="how-it-works">
+                        <p class="how-it-works-title">Como funciona</p>
+                        <p class="how-it-works-text">
+                            Cracks interpreta tu busqueda, revisa resultados en diferentes portales,
+                            compara precios y destaca solo tres opciones utiles: la mejor opcion general,
+                            la mejor calidad-precio y la mas barata disponible en ese momento.
+                        </p>
                     </div>
                 </div>
             </div>
