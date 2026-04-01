@@ -834,36 +834,18 @@ def build_home_page() -> str:
         .header {
             display: flex;
             justify-content: center;
-            margin-bottom: 24px;
+            padding-top: 4px;
+            margin-bottom: 18px;
         }
 
         .logo {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 18px;
-            text-align: left;
+            display: block;
         }
 
         .logo img {
-            height: 72px;
-            width: auto;
+            width: min(320px, 72vw);
+            height: auto;
             display: block;
-        }
-
-        .brand-copy strong {
-            display: block;
-            font-size: clamp(3rem, 8vw, 5.4rem);
-            line-height: 0.9;
-            letter-spacing: -0.07em;
-            text-transform: uppercase;
-        }
-
-        .brand-copy span {
-            color: var(--muted);
-            font-size: 0.95rem;
-            opacity: 0.78;
-            letter-spacing: 0.01em;
         }
 
         .hero {
@@ -1428,16 +1410,8 @@ def build_home_page() -> str:
                 margin-bottom: 18px;
             }
 
-            .logo {
-                gap: 14px;
-            }
-
             .logo img {
-                height: 58px;
-            }
-
-            .brand-copy strong {
-                font-size: clamp(2.6rem, 12vw, 4rem);
+                width: min(250px, 78vw);
             }
 
             .featured-grid {
@@ -1494,10 +1468,6 @@ def build_home_page() -> str:
         <header class="header">
             <div class="logo">
                 <img src="/logo.svg" alt="CRACKS logo" />
-                <div class="brand-copy">
-                    <strong>CRACKS</strong>
-                    <span>Encuentra ofertas claras y decide rapido</span>
-                </div>
             </div>
         </header>
 
