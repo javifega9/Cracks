@@ -792,22 +792,22 @@ def build_home_page() -> str:
     <title>Cracks</title>
     <style>
         :root {
-            --bg: #f4efe7;
-            --panel: rgba(255, 252, 247, 0.82);
-            --panel-strong: #fffdf9;
-            --text: #18202b;
-            --muted: #677283;
-            --line: rgba(142, 111, 73, 0.18);
-            --primary: #c76d2b;
-            --primary-dark: #9c4f18;
-            --primary-soft: #fff0df;
-            --accent: #103d60;
-            --accent-soft: #e8f2fb;
-            --highlight: #fff4e7;
-            --soft-green: #e8f7ea;
-            --soft-green-border: #9fd2a7;
-            --shadow: 0 24px 60px rgba(31, 27, 22, 0.10);
-            --shadow-soft: 0 16px 34px rgba(31, 27, 22, 0.06);
+            --bg: #f7f7f4;
+            --panel: rgba(255, 255, 255, 0.9);
+            --panel-strong: #ffffff;
+            --text: #111111;
+            --muted: #666666;
+            --line: rgba(17, 17, 17, 0.08);
+            --primary: #ffd600;
+            --primary-dark: #f1c400;
+            --primary-soft: #fff8cc;
+            --accent: #111111;
+            --accent-soft: #f3f3f3;
+            --highlight: #fffbe0;
+            --soft-green: #edf8ee;
+            --soft-green-border: #b6d8bb;
+            --shadow: 0 24px 60px rgba(17, 17, 17, 0.08);
+            --shadow-soft: 0 16px 34px rgba(17, 17, 17, 0.05);
         }
 
         * {
@@ -819,9 +819,9 @@ def build_home_page() -> str:
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
             background:
-                radial-gradient(circle at top left, rgba(255, 214, 171, 0.45) 0, transparent 28%),
-                radial-gradient(circle at 85% 10%, rgba(188, 219, 255, 0.55) 0, transparent 22%),
-                linear-gradient(180deg, #fbf7f2 0%, var(--bg) 100%);
+                radial-gradient(circle at top left, rgba(255, 214, 0, 0.12) 0, transparent 24%),
+                radial-gradient(circle at 85% 10%, rgba(17, 17, 17, 0.05) 0, transparent 20%),
+                linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
             min-height: 100vh;
         }
 
@@ -871,7 +871,7 @@ def build_home_page() -> str:
             right: -120px;
             top: -120px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(14, 73, 115, 0.1) 0%, transparent 66%);
+            background: radial-gradient(circle, rgba(255, 214, 0, 0.18) 0%, transparent 66%);
             pointer-events: none;
         }
 
@@ -883,7 +883,7 @@ def build_home_page() -> str:
             left: -90px;
             bottom: -140px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(199, 109, 43, 0.1) 0%, transparent 68%);
+            background: radial-gradient(circle, rgba(17, 17, 17, 0.06) 0%, transparent 68%);
             pointer-events: none;
         }
 
@@ -933,7 +933,7 @@ def build_home_page() -> str:
         }
 
         .hero-point {
-            background: rgba(255, 255, 255, 0.78);
+            background: rgba(255, 255, 255, 0.9);
             border: 1px solid var(--line);
             border-radius: 20px;
             padding: 16px 18px;
@@ -955,11 +955,11 @@ def build_home_page() -> str:
 
         .search-shell {
             width: min(100%, 860px);
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(17, 17, 17, 0.1);
             border-radius: 34px;
             padding: 22px;
-            box-shadow: 0 26px 70px rgba(31, 27, 22, 0.12);
+            box-shadow: 0 28px 72px rgba(17, 17, 17, 0.1);
             backdrop-filter: blur(16px);
         }
 
@@ -977,15 +977,15 @@ def build_home_page() -> str:
             width: 100%;
             padding: 20px 22px;
             border-radius: 22px;
-            border: 1px solid var(--line);
+            border: 1px solid rgba(17, 17, 17, 0.12);
             font-size: 1.08rem;
             outline: none;
-            background: rgba(255, 255, 255, 0.96);
+            background: #ffffff;
         }
 
         input[type="text"]:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
+            border-color: rgba(255, 214, 0, 0.95);
+            box-shadow: 0 0 0 4px rgba(255, 214, 0, 0.22);
         }
 
         .query-ghost {
@@ -1020,25 +1020,25 @@ def build_home_page() -> str:
         }
 
         .primary-button {
-            background: linear-gradient(135deg, var(--primary) 0%, #e88d45 100%);
-            color: white;
-            box-shadow: 0 18px 30px rgba(199, 109, 43, 0.24);
+            background: linear-gradient(135deg, #ffe04d 0%, var(--primary) 100%);
+            color: #111111;
+            box-shadow: 0 18px 30px rgba(255, 214, 0, 0.24);
             min-width: 170px;
         }
 
         .primary-button:hover {
-            background: linear-gradient(135deg, var(--primary-dark) 0%, #d97831 100%);
+            background: linear-gradient(135deg, #ffe766 0%, var(--primary-dark) 100%);
             transform: translateY(-1px);
         }
 
         .secondary-button {
-            background: rgba(255, 255, 255, 0.92);
-            color: var(--text);
-            border: 1px solid var(--line);
+            background: #111111;
+            color: #ffffff;
+            border: 1px solid #111111;
         }
 
         .secondary-button:hover {
-            background: white;
+            background: #1f1f1f;
             transform: translateY(-1px);
         }
 
@@ -1061,8 +1061,8 @@ def build_home_page() -> str:
         .meta {
             display: none;
             margin-top: 24px;
-            background: linear-gradient(180deg, var(--highlight) 0%, #fffaf2 100%);
-            border: 1px solid #f2d5a4;
+            background: linear-gradient(180deg, #fffef2 0%, var(--highlight) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.3);
             border-radius: 22px;
             padding: 18px 20px;
             box-shadow: var(--shadow-soft);
@@ -1071,7 +1071,7 @@ def build_home_page() -> str:
         .meta strong {
             display: block;
             margin-bottom: 8px;
-            color: #8a4416;
+            color: #111111;
         }
 
         .section {
@@ -1104,11 +1104,11 @@ def build_home_page() -> str:
         .spotlight {
             display: none;
             margin-top: 22px;
-            background: linear-gradient(135deg, rgba(15, 58, 89, 0.96) 0%, rgba(22, 83, 122, 0.94) 100%);
+            background: linear-gradient(135deg, rgba(12, 12, 12, 0.98) 0%, rgba(28, 28, 28, 0.96) 100%);
             color: white;
             border-radius: 28px;
             padding: 22px 24px;
-            box-shadow: 0 22px 44px rgba(16, 61, 96, 0.20);
+            box-shadow: 0 22px 44px rgba(17, 17, 17, 0.18);
         }
 
         .spotlight-label {
@@ -1117,7 +1117,8 @@ def build_home_page() -> str:
             gap: 8px;
             padding: 7px 11px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 214, 0, 0.16);
+            color: #ffe98a;
             font-size: 0.8rem;
             font-weight: 800;
             letter-spacing: 0.05em;
@@ -1160,15 +1161,15 @@ def build_home_page() -> str:
             min-height: 52px;
             padding: 0 22px;
             border-radius: 16px;
-            background: linear-gradient(135deg, #ffb34f 0%, #f08a31 100%);
-            color: #4a2107;
+            background: linear-gradient(135deg, #ffe04d 0%, #ffd600 100%);
+            color: #111111;
             text-decoration: none;
             font-weight: 800;
-            box-shadow: 0 14px 24px rgba(240, 138, 49, 0.24);
+            box-shadow: 0 14px 24px rgba(255, 214, 0, 0.2);
         }
 
         .spotlight-button:hover {
-            background: linear-gradient(135deg, #ffc361 0%, #f59b45 100%);
+            background: linear-gradient(135deg, #ffe766 0%, #ffd600 100%);
             text-decoration: none;
         }
 
@@ -1180,7 +1181,7 @@ def build_home_page() -> str:
         }
 
         .compare-item {
-            background: rgba(255, 255, 255, 0.92);
+            background: rgba(255, 255, 255, 0.96);
             border: 1px solid var(--line);
             border-radius: 20px;
             padding: 16px;
@@ -1190,7 +1191,7 @@ def build_home_page() -> str:
         .compare-item strong {
             display: block;
             font-size: 0.88rem;
-            color: var(--accent);
+            color: #111111;
             margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -1239,8 +1240,8 @@ def build_home_page() -> str:
         }
 
         .top-card {
-            border-color: rgba(239, 179, 109, 0.95);
-            background: linear-gradient(180deg, #fff6eb 0%, #fffdf9 100%);
+            border-color: rgba(255, 214, 0, 0.8);
+            background: linear-gradient(180deg, #fffef4 0%, #ffffff 100%);
         }
 
         .featured-card {
@@ -1267,8 +1268,8 @@ def build_home_page() -> str:
             display: inline-block;
             padding: 6px 10px;
             border-radius: 999px;
-            background: #ffedd5;
-            color: #9a3412;
+            background: #111111;
+            color: #ffffff;
             font-size: 0.78rem;
             font-weight: 700;
         }
@@ -1302,14 +1303,14 @@ def build_home_page() -> str:
             color: var(--text);
             font-size: 0.96rem;
             line-height: 1.55;
-            background: rgba(16, 61, 96, 0.05);
-            border: 1px solid rgba(16, 61, 96, 0.08);
+            background: rgba(255, 214, 0, 0.12);
+            border: 1px solid rgba(255, 214, 0, 0.18);
             border-radius: 16px;
             padding: 12px 14px;
         }
 
         .featured-kicker {
-            color: var(--accent);
+            color: #111111;
             font-size: 0.86rem;
             font-weight: 800;
             text-transform: uppercase;
@@ -1374,18 +1375,18 @@ def build_home_page() -> str:
             min-height: 52px;
             padding: 0 18px;
             border-radius: 16px;
-            background: linear-gradient(135deg, #ffb34f 0%, #f08a31 100%);
-            border: 1px solid rgba(199, 109, 43, 0.22);
-            color: #4a2107;
+            background: linear-gradient(135deg, #ffe04d 0%, #ffd600 100%);
+            border: 1px solid rgba(255, 214, 0, 0.35);
+            color: #111111;
             text-decoration: none;
             white-space: nowrap;
             font-weight: 800;
-            box-shadow: 0 12px 20px rgba(240, 138, 49, 0.20);
+            box-shadow: 0 12px 20px rgba(255, 214, 0, 0.18);
         }
 
         .card-link:hover {
             text-decoration: none;
-            background: linear-gradient(135deg, #ffbf63 0%, #f4933f 100%);
+            background: linear-gradient(135deg, #ffe766 0%, #ffd600 100%);
         }
 
         .link-note {
