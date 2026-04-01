@@ -1558,7 +1558,7 @@ def build_home_page() -> str:
     <div class="wrap">
         <header class="header">
             <div class="logo">
-                <img src="/logo.png" alt="CRACKS logo" />
+                <img src="/logo.svg" alt="CRACKS logo" />
             </div>
         </header>
 
@@ -2075,10 +2075,10 @@ def build_home_page() -> str:
 """.strip()
 
 
-@app.get("/logo.png")
-def logo_png() -> FileResponse:
-    logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
-    return FileResponse(path=logo_path, media_type="image/png")
+@app.get("/logo.svg")
+def logo_svg() -> FileResponse:
+    logo_path = os.path.join(os.path.dirname(__file__), "logo.svg")
+    return FileResponse(path=logo_path, media_type="image/svg+xml")
 
 
 @app.get("/", response_class=HTMLResponse)
