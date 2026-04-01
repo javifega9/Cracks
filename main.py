@@ -843,15 +843,38 @@ def build_home_page() -> str:
         }
 
         .logo {
-            display: block;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px 26px 14px;
+            isolation: isolate;
+        }
+
+        .logo::before {
+            content: "";
+            position: absolute;
+            inset: -16px -30px -10px;
+            background: radial-gradient(
+                ellipse at center,
+                rgba(255, 255, 255, 0.98) 0%,
+                rgba(255, 255, 255, 0.92) 44%,
+                rgba(255, 255, 255, 0.72) 62%,
+                rgba(255, 255, 255, 0.16) 82%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            filter: blur(10px);
+            pointer-events: none;
+            z-index: 0;
         }
 
         .logo img {
             width: min(360px, 78vw);
             height: auto;
             display: block;
-            border-radius: 10px;
-            box-shadow: 0 10px 24px rgba(17, 17, 17, 0.08);
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 10px 18px rgba(17, 17, 17, 0.07));
         }
 
         .hero {
@@ -1443,6 +1466,10 @@ def build_home_page() -> str:
                 margin-bottom: 22px;
             }
 
+            .logo {
+                padding: 14px 18px 10px;
+            }
+
             .logo img {
                 width: min(300px, 82vw);
             }
@@ -1483,6 +1510,11 @@ def build_home_page() -> str:
             .wrap {
                 width: min(100% - 18px, 1180px);
                 padding-top: 18px;
+            }
+
+            .logo::before {
+                inset: -12px -18px -8px;
+                filter: blur(8px);
             }
 
             .hero {
