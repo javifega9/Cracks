@@ -847,14 +847,14 @@ def build_home_page() -> str:
             z-index: 1;
             width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 8px 0 88px;
+            padding: 4px 0 88px;
         }
 
         .header {
             display: flex;
             justify-content: center;
             padding-top: 0;
-            margin-bottom: 2px;
+            margin-bottom: -6px;
         }
 
         .logo {
@@ -862,36 +862,36 @@ def build_home_page() -> str:
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0 34px 4px;
+            width: min(980px, 100%);
+            padding: 0 18px 0;
             isolation: isolate;
         }
 
         .logo::before {
             content: "";
             position: absolute;
-            inset: -18px -96px -10px;
+            inset: -10px -56px -6px;
             background: radial-gradient(
                 ellipse at center,
                 rgba(255, 255, 255, 1) 0%,
-                rgba(255, 255, 255, 0.985) 46%,
-                rgba(255, 255, 255, 0.88) 68%,
-                rgba(255, 255, 255, 0.18) 86%,
+                rgba(255, 255, 255, 0.992) 48%,
+                rgba(255, 255, 255, 0.9) 72%,
+                rgba(255, 255, 255, 0.16) 88%,
                 rgba(255, 255, 255, 0) 100%
             );
-            filter: blur(16px);
+            filter: blur(12px);
             pointer-events: none;
             z-index: 0;
         }
 
         .logo img {
-            width: min(560px, 88vw);
-            max-height: 106px;
+            width: min(820px, 96vw);
+            max-height: 170px;
             height: auto;
             display: block;
             position: relative;
             z-index: 1;
-            mix-blend-mode: multiply;
-            filter: drop-shadow(0 6px 14px rgba(17, 17, 17, 0.04));
+            filter: drop-shadow(0 4px 10px rgba(17, 17, 17, 0.03));
         }
 
         .hero {
@@ -902,7 +902,7 @@ def build_home_page() -> str:
             border-radius: 0;
             padding: 0 0 28px;
             box-shadow: none;
-            min-height: calc(100vh - 108px);
+            min-height: calc(100vh - 96px);
             display: grid;
             align-items: center;
         }
@@ -1488,16 +1488,17 @@ def build_home_page() -> str:
 
         @media (max-width: 860px) {
             .header {
-                margin-bottom: 2px;
+                margin-bottom: -2px;
             }
 
             .logo {
-                padding: 0 18px 2px;
+                width: min(100%, 920px);
+                padding: 0 10px 0;
             }
 
             .logo img {
-                width: min(470px, 92vw);
-                max-height: 90px;
+                width: min(720px, 96vw);
+                max-height: 142px;
             }
 
             .featured-grid {
@@ -1539,8 +1540,8 @@ def build_home_page() -> str:
             }
 
             .logo::before {
-                inset: -10px -38px -8px;
-                filter: blur(12px);
+                inset: -8px -22px -6px;
+                filter: blur(10px);
             }
 
             .hero {
