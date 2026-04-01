@@ -791,6 +791,8 @@ def build_home_page() -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cracks</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
         :root {
             --bg: #f7f7f4;
             --panel: rgba(255, 255, 255, 0.9);
@@ -816,13 +818,15 @@ def build_home_page() -> str:
 
         body {
             margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
             background:
                 radial-gradient(circle at top left, rgba(255, 214, 0, 0.12) 0, transparent 24%),
                 radial-gradient(circle at 85% 10%, rgba(17, 17, 17, 0.05) 0, transparent 20%),
                 linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
             min-height: 100vh;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
 
         .wrap {
@@ -919,10 +923,11 @@ def build_home_page() -> str:
         .subtitle {
             margin: 0;
             color: var(--muted);
-            font-size: 0.98rem;
-            line-height: 1.65;
+            font-size: 1rem;
+            font-weight: 500;
+            line-height: 1.6;
             max-width: 760px;
-            opacity: 0.82;
+            opacity: 0.86;
         }
 
         .hero-points {
@@ -979,6 +984,7 @@ def build_home_page() -> str:
             border-radius: 22px;
             border: 1px solid rgba(17, 17, 17, 0.12);
             font-size: 1.08rem;
+            font-weight: 500;
             outline: none;
             background: #ffffff;
         }
@@ -994,8 +1000,9 @@ def build_home_page() -> str:
             right: 22px;
             top: 50%;
             transform: translateY(-50%);
-            color: rgba(103, 114, 131, 0.62);
+            color: rgba(102, 102, 102, 0.58);
             font-size: 1.08rem;
+            font-weight: 500;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -1089,8 +1096,9 @@ def build_home_page() -> str:
 
         .section h2 {
             margin: 0;
-            font-size: 1.45rem;
-            letter-spacing: -0.03em;
+            font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
         }
 
         .section-intro {
@@ -1128,7 +1136,7 @@ def build_home_page() -> str:
 
         .spotlight-title {
             font-size: clamp(1.4rem, 3vw, 2rem);
-            letter-spacing: -0.03em;
+            letter-spacing: -0.05em;
             font-weight: 800;
             margin-bottom: 8px;
         }
@@ -1186,6 +1194,13 @@ def build_home_page() -> str:
             border-radius: 20px;
             padding: 16px;
             box-shadow: var(--shadow-soft);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .compare-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 34px rgba(17, 17, 17, 0.08);
+            border-color: rgba(255, 214, 0, 0.32);
         }
 
         .compare-item strong {
@@ -1237,6 +1252,13 @@ def build_home_page() -> str:
             display: flex;
             flex-direction: column;
             gap: 14px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 22px 40px rgba(17, 17, 17, 0.08);
+            border-color: rgba(255, 214, 0, 0.28);
         }
 
         .top-card {
@@ -1274,6 +1296,11 @@ def build_home_page() -> str:
             font-weight: 700;
         }
 
+        .badge-row .badge:first-child {
+            background: #ffd600;
+            color: #111111;
+        }
+
         .bargain-badge {
             background: var(--soft-green);
             color: #166534;
@@ -1281,15 +1308,16 @@ def build_home_page() -> str:
         }
 
         .title {
-            font-size: 1.02rem;
-            font-weight: 700;
-            line-height: 1.45;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.4;
         }
 
         .price {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 800;
-            letter-spacing: -0.04em;
+            letter-spacing: -0.06em;
             line-height: 1;
         }
 
@@ -1307,6 +1335,7 @@ def build_home_page() -> str:
             border: 1px solid rgba(255, 214, 0, 0.18);
             border-radius: 16px;
             padding: 12px 14px;
+            font-weight: 500;
         }
 
         .featured-kicker {
@@ -1332,9 +1361,9 @@ def build_home_page() -> str:
             border-radius: 18px;
             overflow: hidden;
             background:
-                linear-gradient(135deg, rgba(16, 61, 96, 0.08) 0%, rgba(199, 109, 43, 0.08) 100%),
-                #f8f3ec;
-            border: 1px solid rgba(142, 111, 73, 0.12);
+                radial-gradient(circle at top left, rgba(255, 214, 0, 0.16) 0%, transparent 38%),
+                linear-gradient(180deg, #ffffff 0%, #f6f6f2 100%);
+            border: 1px solid rgba(17, 17, 17, 0.08);
             display: grid;
             place-items: center;
         }
@@ -1382,6 +1411,7 @@ def build_home_page() -> str:
             white-space: nowrap;
             font-weight: 800;
             box-shadow: 0 12px 20px rgba(255, 214, 0, 0.18);
+            letter-spacing: -0.01em;
         }
 
         .card-link:hover {
