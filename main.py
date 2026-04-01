@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from openai import OpenAI
 from pydantic import BaseModel
@@ -2018,17 +2018,9 @@ def build_home_page() -> str:
 
 
 @app.get("/logo.svg")
-def logo_svg() -> Response:
-    svg = """
-<svg width="300" height="80" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#000000"/>
-  <text x="20" y="52" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="700" fill="#FFFFFF">
-    CRACKS
-  </text>
-  <polygon points="112,20 122,38 116,38 128,60" fill="#FFD600"/>
-</svg>
-""".strip()
-    return Response(content=svg, media_type="image/svg+xml")
+def logo_svg() -> FileResponse:
+    logo_path = os.path.join(os.path.dirname(__file__), "logo.svg")
+    return FileResponse(path=logo_path, media_type="image/svg+xml")
 
 
 @app.get("/", response_class=HTMLResponse)
