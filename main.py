@@ -11,6 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
+from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from openai import OpenAI
 from pydantic import BaseModel
@@ -830,13 +831,13 @@ def build_home_page() -> str:
             padding: 28px 0 88px;
         }
 
-        .topbar {
+        .header {
             display: flex;
             justify-content: center;
             margin-bottom: 24px;
         }
 
-        .brand {
+        .logo {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -844,18 +845,10 @@ def build_home_page() -> str:
             text-align: left;
         }
 
-        .brand-mark {
-            width: 78px;
-            height: 78px;
-            border-radius: 24px;
-            display: grid;
-            place-items: center;
-            color: white;
-            font-weight: 800;
-            font-size: 2rem;
-            background:
-                linear-gradient(135deg, #0c3a59 0%, #1b5f8f 55%, #f0893d 100%);
-            box-shadow: 0 18px 32px rgba(16, 61, 96, 0.22);
+        .logo img {
+            height: 72px;
+            width: auto;
+            display: block;
         }
 
         .brand-copy strong {
@@ -1431,18 +1424,16 @@ def build_home_page() -> str:
         }
 
         @media (max-width: 860px) {
-            .topbar {
+            .header {
                 margin-bottom: 18px;
             }
 
-            .brand {
+            .logo {
                 gap: 14px;
             }
 
-            .brand-mark {
-                width: 62px;
-                height: 62px;
-                font-size: 1.6rem;
+            .logo img {
+                height: 58px;
             }
 
             .brand-copy strong {
@@ -1498,17 +1489,17 @@ def build_home_page() -> str:
         }
     </style>
 </head>
-<body>
+    <body>
     <div class="wrap">
-        <div class="topbar">
-            <div class="brand">
-                <div class="brand-mark">C</div>
+        <header class="header">
+            <div class="logo">
+                <img src="/logo.svg" alt="CRACKS logo" />
                 <div class="brand-copy">
                     <strong>CRACKS</strong>
                     <span>Encuentra ofertas claras y decide rapido</span>
                 </div>
             </div>
-        </div>
+        </header>
 
         <section class="hero">
             <div class="hero-grid">
@@ -2021,6 +2012,25 @@ def build_home_page() -> str:
 </body>
 </html>
 """.strip()
+
+
+@app.get("/logo.svg")
+def logo_svg() -> Response:
+    svg = """
+<svg width="220" height="72" viewBox="0 0 220 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="72" height="72" rx="22" fill="url(#g)"/>
+  <path d="M24 22H41.5C49.5 22 55 26.5 55 33.5C55 38.9 51.7 42.8 46.3 44L56 50.5V53H47.8L39.1 46.4H31.4V53H24V22ZM31.4 28.3V40.2H41.1C45.5 40.2 47.6 37.9 47.6 34.2C47.6 30.6 45.4 28.3 41.1 28.3H31.4Z" fill="white"/>
+  <path d="M94.78 50V22.8H114.52V28.72H101.96V33.76H113.2V39.44H101.96V44.08H114.72V50H94.78ZM120.87 50V22.8H129.69L140.25 39.72V22.8H147.19V50H138.93L127.81 32.28V50H120.87ZM154.59 50V22.8H174.33V28.72H161.77V33.76H173.01V39.44H161.77V44.08H174.53V50H154.59ZM180.68 50V22.8H192.64C200.46 22.8 205.02 27 205.02 33.56C205.02 38.32 202.58 41.92 198.34 43.68L206.44 50H196.72L189.96 44.82H187.86V50H180.68ZM187.86 39.3H191.72C195.52 39.3 197.64 37.38 197.64 34.04C197.64 30.72 195.52 28.8 191.72 28.8H187.86V39.3Z" fill="#111111"/>
+  <defs>
+    <linearGradient id="g" x1="6" y1="8" x2="64" y2="66" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0C3A59"/>
+      <stop offset="0.55" stop-color="#1B5F8F"/>
+      <stop offset="1" stop-color="#F0893D"/>
+    </linearGradient>
+  </defs>
+</svg>
+""".strip()
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/", response_class=HTMLResponse)
