@@ -1002,6 +1002,10 @@ def build_home_page() -> str:
             background: rgba(255, 255, 255, 0.96);
         }
 
+        input[type="text"]::placeholder {
+            color: rgba(103, 114, 131, 0.62);
+        }
+
         input[type="text"]:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
@@ -1044,33 +1048,10 @@ def build_home_page() -> str:
         .search-utility-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 12px;
             flex-wrap: wrap;
             margin-top: 16px;
-        }
-
-        .examples {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .example-chip {
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.9);
-            color: var(--text);
-            padding: 10px 14px;
-            border-radius: 999px;
-            cursor: pointer;
-            font-size: 0.95rem;
-            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-        }
-
-        .example-chip:hover {
-            transform: translateY(-1px);
-            background: white;
-            border-color: rgba(199, 109, 43, 0.28);
         }
 
         .status {
@@ -1466,10 +1447,6 @@ def build_home_page() -> str:
                 flex-direction: column;
             }
 
-            .examples {
-                justify-content: center;
-            }
-
             .hero-points {
                 grid-template-columns: 1fr;
             }
@@ -1519,17 +1496,12 @@ def build_home_page() -> str:
                     <h1>CRACKS</h1>
                     <div class="search-shell">
                         <div class="search-bar">
-                            <input id="query" type="text" placeholder="Ejemplo: iphone 15, cafetera nespresso, portatil lenovo barato">
+                            <input id="query" type="text" placeholder="iphone 15, cafetera nespresso, portatil lenovo barato">
                             <button id="searchButton" class="primary-button">Buscar</button>
                         </div>
 
                         <div class="search-utility-row">
                             <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
-                            <div class="examples">
-                                <button class="example-chip" type="button" data-query="iphone 15">iphone 15</button>
-                                <button class="example-chip" type="button" data-query="portatil lenovo barato">portatil lenovo barato</button>
-                                <button class="example-chip" type="button" data-query="cafetera nespresso">cafetera nespresso</button>
-                            </div>
                         </div>
 
                         <div class="status" id="status">Listo para buscar.</div>
@@ -1537,7 +1509,7 @@ def build_home_page() -> str:
                     </div>
 
                     <p class="subtitle">
-                        Busca productos, filtra ruido y encuentra tres opciones claras para decidir en segundos.
+                        encuentra las mejores ofertas en segundo
                     </p>
 
                     <div class="hero-points">
@@ -1969,13 +1941,6 @@ def build_home_page() -> str:
             if (event.key === "Enter") {
                 doSearch();
             }
-        });
-
-        document.querySelectorAll(".example-chip").forEach((button) => {
-            button.addEventListener("click", () => {
-                queryInput.value = button.dataset.query || "";
-                doSearch();
-            });
         });
 
         loadSavedSearches();
