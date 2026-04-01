@@ -992,6 +992,10 @@ def build_home_page() -> str:
             gap: 14px;
         }
 
+        .query-wrap {
+            position: relative;
+        }
+
         input[type="text"] {
             width: 100%;
             padding: 20px 22px;
@@ -1002,13 +1006,29 @@ def build_home_page() -> str:
             background: rgba(255, 255, 255, 0.96);
         }
 
-        input[type="text"]::placeholder {
-            color: rgba(103, 114, 131, 0.62);
-        }
-
         input[type="text"]:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(196, 107, 45, 0.12);
+        }
+
+        .query-ghost {
+            position: absolute;
+            left: 22px;
+            right: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(103, 114, 131, 0.62);
+            font-size: 1.08rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.32s ease;
+        }
+
+        .query-ghost.is-hidden {
+            opacity: 0;
         }
 
         button {
@@ -1496,7 +1516,10 @@ def build_home_page() -> str:
                     <h1>CRACKS</h1>
                     <div class="search-shell">
                         <div class="search-bar">
-                            <input id="query" type="text" placeholder="iphone 15, cafetera nespresso, portatil lenovo barato">
+                            <div class="query-wrap">
+                                <input id="query" type="text" placeholder="">
+                                <div id="queryGhost" class="query-ghost">iphone 15</div>
+                            </div>
                             <button id="searchButton" class="primary-button">Buscar</button>
                         </div>
 
@@ -1561,6 +1584,7 @@ def build_home_page() -> str:
     <script>
         const LOCAL_STORAGE_KEY = "cracks_saved_searches";
         const queryInput = document.getElementById("query");
+        const queryGhost = document.getElementById("queryGhost");
         const searchButton = document.getElementById("searchButton");
         const saveButton = document.getElementById("saveButton");
         const reviewSavedButton = document.getElementById("reviewSavedButton");
@@ -1599,22 +1623,42 @@ def build_home_page() -> str:
 
         function startPlaceholderRotation() {
             let placeholderIndex = 0;
+            let isTransitioning = false;
 
-            const applyPlaceholder = () => {
-                if (document.activeElement === queryInput || queryInput.value.trim()) {
-                    return;
-                }
-                queryInput.setAttribute("placeholder", rotatingPlaceholders[placeholderIndex]);
+            const syncGhostVisibility = () => {
+                const shouldHide = document.activeElement === queryInput || queryInput.value.trim();
+                queryGhost.classList.toggle("is-hidden", Boolean(shouldHide));
             };
 
-            applyPlaceholder();
+            const applyPlaceholder = (nextText) => {
+                if (document.activeElement === queryInput || queryInput.value.trim() || isTransitioning) {
+                    syncGhostVisibility();
+                    return;
+                }
+                queryGhost.textContent = nextText;
+                syncGhostVisibility();
+            };
+
+            applyPlaceholder(rotatingPlaceholders[placeholderIndex]);
 
             setInterval(() => {
                 placeholderIndex = (placeholderIndex + 1) % rotatingPlaceholders.length;
-                applyPlaceholder();
+                if (document.activeElement === queryInput || queryInput.value.trim()) {
+                    syncGhostVisibility();
+                    return;
+                }
+                isTransitioning = true;
+                queryGhost.classList.add("is-hidden");
+                setTimeout(() => {
+                    queryGhost.textContent = rotatingPlaceholders[placeholderIndex];
+                    queryGhost.classList.remove("is-hidden");
+                    isTransitioning = false;
+                }, 220);
             }, 2400);
 
-            queryInput.addEventListener("blur", applyPlaceholder);
+            queryInput.addEventListener("focus", syncGhostVisibility);
+            queryInput.addEventListener("blur", syncGhostVisibility);
+            queryInput.addEventListener("input", syncGhostVisibility);
         }
 
         function scrollResultsIntoView() {
