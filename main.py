@@ -838,8 +838,8 @@ def build_home_page() -> str:
         .header {
             display: flex;
             justify-content: center;
-            padding-top: 4px;
-            margin-bottom: 18px;
+            padding-top: 10px;
+            margin-bottom: 28px;
         }
 
         .logo {
@@ -847,11 +847,11 @@ def build_home_page() -> str:
         }
 
         .logo img {
-            width: min(300px, 72vw);
+            width: min(360px, 78vw);
             height: auto;
             display: block;
-            border-radius: 14px;
-            box-shadow: 0 16px 32px rgba(17, 17, 17, 0.14);
+            border-radius: 10px;
+            box-shadow: 0 10px 24px rgba(17, 17, 17, 0.08);
         }
 
         .hero {
@@ -1440,11 +1440,11 @@ def build_home_page() -> str:
 
         @media (max-width: 860px) {
             .header {
-                margin-bottom: 18px;
+                margin-bottom: 22px;
             }
 
             .logo img {
-                width: min(230px, 78vw);
+                width: min(300px, 82vw);
             }
 
             .featured-grid {
