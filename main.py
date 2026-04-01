@@ -1099,6 +1099,41 @@ def build_home_page() -> str:
             margin-top: 16px;
         }
 
+        .loading-shell {
+            display: none;
+            margin-top: 18px;
+            text-align: left;
+        }
+
+        .loading-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            color: rgba(17, 17, 17, 0.76);
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .loading-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(17, 17, 17, 0.08);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .loading-bar {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #ffd600 0%, #ffb300 100%);
+            box-shadow: 0 6px 14px rgba(255, 193, 7, 0.24);
+            transition: width 0.28s ease;
+        }
+
         .status {
             margin-top: 18px;
             color: rgba(17, 17, 17, 0.72);
@@ -1576,6 +1611,16 @@ def build_home_page() -> str:
                             <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
                         </div>
 
+                        <div class="loading-shell" id="loadingShell" aria-hidden="true">
+                            <div class="loading-label">
+                                <span id="loadingStep">Preparando busqueda...</span>
+                                <span id="loadingPercent">0%</span>
+                            </div>
+                            <div class="loading-track">
+                                <div class="loading-bar" id="loadingBar"></div>
+                            </div>
+                        </div>
+
                         <div class="status" id="status">Listo para buscar.</div>
                         <div class="meta" id="meta"></div>
                     </div>
@@ -1629,6 +1674,10 @@ def build_home_page() -> str:
         const reviewSavedButton = document.getElementById("reviewSavedButton");
         const statusBox = document.getElementById("status");
         const metaBox = document.getElementById("meta");
+        const loadingShell = document.getElementById("loadingShell");
+        const loadingBar = document.getElementById("loadingBar");
+        const loadingPercent = document.getElementById("loadingPercent");
+        const loadingStep = document.getElementById("loadingStep");
         const topSection = document.getElementById("topSection");
         const spotlightBox = document.getElementById("spotlightBox");
         const compareStrip = document.getElementById("compareStrip");
@@ -1642,6 +1691,8 @@ def build_home_page() -> str:
             "aspiradora sin cable"
         ];
         let latestSearchData = null;
+        let loadingInterval = null;
+        let loadingStepInterval = null;
 
         function escapeHtml(text) {
             return String(text ?? "")
@@ -1705,6 +1756,69 @@ def build_home_page() -> str:
                 const top = Math.max(topSection.getBoundingClientRect().top + window.scrollY - 18, 0);
                 window.scrollTo({ top, behavior: "smooth" });
             });
+        }
+
+        function stopLoadingState(finalPercent = 100) {
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+                loadingInterval = null;
+            }
+            if (loadingStepInterval) {
+                clearInterval(loadingStepInterval);
+                loadingStepInterval = null;
+            }
+
+            loadingBar.style.width = `${finalPercent}%`;
+            loadingPercent.textContent = `${Math.round(finalPercent)}%`;
+
+            setTimeout(() => {
+                loadingShell.style.display = "none";
+                loadingShell.setAttribute("aria-hidden", "true");
+                loadingBar.style.width = "0%";
+                loadingPercent.textContent = "0%";
+                loadingStep.textContent = "Preparando busqueda...";
+            }, 320);
+        }
+
+        function startLoadingState() {
+            const steps = [
+                "Interpretando tu busqueda...",
+                "Revisando portales y precios...",
+                "Comparando opciones destacadas...",
+                "Preparando la mejor recomendacion..."
+            ];
+
+            let progress = 8;
+            let stepIndex = 0;
+
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+            }
+            if (loadingStepInterval) {
+                clearInterval(loadingStepInterval);
+            }
+
+            loadingShell.style.display = "block";
+            loadingShell.setAttribute("aria-hidden", "false");
+            loadingBar.style.width = `${progress}%`;
+            loadingPercent.textContent = `${progress}%`;
+            loadingStep.textContent = steps[stepIndex];
+
+            loadingInterval = setInterval(() => {
+                if (progress >= 90) {
+                    return;
+                }
+
+                const increment = progress < 40 ? 7 : progress < 70 ? 4 : 2;
+                progress = Math.min(progress + increment, 90);
+                loadingBar.style.width = `${progress}%`;
+                loadingPercent.textContent = `${Math.round(progress)}%`;
+            }, 260);
+
+            loadingStepInterval = setInterval(() => {
+                stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+                loadingStep.textContent = steps[stepIndex];
+            }, 950);
         }
 
         function getLocalSavedSearches() {
@@ -1881,6 +1995,7 @@ def build_home_page() -> str:
             }
 
             statusBox.textContent = "Buscando productos...";
+            startLoadingState();
             metaBox.style.display = "none";
             topSection.style.display = "none";
             spotlightBox.style.display = "none";
@@ -1926,7 +2041,9 @@ def build_home_page() -> str:
                     statusBox.textContent = `Busqueda completada. Mostrando 3 opciones destacadas para decidir mas rapido.`;
                     scrollResultsIntoView();
                 }
+                stopLoadingState(100);
             } catch (error) {
+                stopLoadingState(100);
                 statusBox.textContent = `Error: ${error.message}`;
             }
         }
