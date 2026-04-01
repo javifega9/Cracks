@@ -817,30 +817,44 @@ def build_home_page() -> str:
         }
 
         body {
+            position: relative;
+            isolation: isolate;
             margin: 0;
             font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
             background:
-                radial-gradient(ellipse 58% 26% at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.98) 46%, rgba(255, 255, 255, 0) 100%),
-                radial-gradient(circle at 22% 0%, rgba(255, 184, 0, 0.12) 0, transparent 24%),
-                radial-gradient(circle at 82% 8%, rgba(17, 17, 17, 0.045) 0, transparent 18%),
-                linear-gradient(180deg, #ffffff 0%, #fffef8 36%, var(--bg) 100%);
+                radial-gradient(ellipse 62% 28% at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.995) 48%, rgba(255, 255, 255, 0) 100%),
+                radial-gradient(circle at 22% 0%, rgba(255, 184, 0, 0.08) 0, transparent 22%),
+                radial-gradient(circle at 82% 8%, rgba(17, 17, 17, 0.035) 0, transparent 16%),
+                linear-gradient(180deg, #ffffff 0%, #ffffff 22%, #fffef9 44%, var(--bg) 100%);
             min-height: 100vh;
             text-rendering: optimizeLegibility;
             -webkit-font-smoothing: antialiased;
         }
 
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 260px;
+            background: linear-gradient(180deg, #ffffff 0%, #ffffff 58%, rgba(255, 255, 255, 0.94) 76%, rgba(255, 255, 255, 0) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
         .wrap {
+            position: relative;
+            z-index: 1;
             width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 12px 0 88px;
+            padding: 8px 0 88px;
         }
 
         .header {
             display: flex;
             justify-content: center;
             padding-top: 0;
-            margin-bottom: 10px;
+            margin-bottom: 2px;
         }
 
         .logo {
@@ -855,27 +869,29 @@ def build_home_page() -> str:
         .logo::before {
             content: "";
             position: absolute;
-            inset: -20px -82px -14px;
+            inset: -18px -96px -10px;
             background: radial-gradient(
                 ellipse at center,
-                rgba(255, 255, 255, 0.98) 0%,
-                rgba(255, 255, 255, 0.95) 48%,
-                rgba(255, 249, 227, 0.84) 65%,
-                rgba(255, 255, 255, 0.24) 84%,
+                rgba(255, 255, 255, 1) 0%,
+                rgba(255, 255, 255, 0.985) 46%,
+                rgba(255, 255, 255, 0.88) 68%,
+                rgba(255, 255, 255, 0.18) 86%,
                 rgba(255, 255, 255, 0) 100%
             );
-            filter: blur(14px);
+            filter: blur(16px);
             pointer-events: none;
             z-index: 0;
         }
 
         .logo img {
-            width: min(500px, 84vw);
+            width: min(560px, 88vw);
+            max-height: 106px;
             height: auto;
             display: block;
             position: relative;
             z-index: 1;
-            filter: drop-shadow(0 8px 18px rgba(17, 17, 17, 0.06));
+            mix-blend-mode: multiply;
+            filter: drop-shadow(0 6px 14px rgba(17, 17, 17, 0.04));
         }
 
         .hero {
@@ -886,7 +902,7 @@ def build_home_page() -> str:
             border-radius: 0;
             padding: 0 0 28px;
             box-shadow: none;
-            min-height: calc(100vh - 118px);
+            min-height: calc(100vh - 108px);
             display: grid;
             align-items: center;
         }
@@ -931,7 +947,7 @@ def build_home_page() -> str:
             width: min(100%, 960px);
             display: grid;
             justify-items: center;
-            gap: 18px;
+            gap: 14px;
             text-align: center;
         }
 
@@ -1472,7 +1488,7 @@ def build_home_page() -> str:
 
         @media (max-width: 860px) {
             .header {
-                margin-bottom: 8px;
+                margin-bottom: 2px;
             }
 
             .logo {
@@ -1480,7 +1496,8 @@ def build_home_page() -> str:
             }
 
             .logo img {
-                width: min(420px, 88vw);
+                width: min(470px, 92vw);
+                max-height: 90px;
             }
 
             .featured-grid {
@@ -1518,12 +1535,12 @@ def build_home_page() -> str:
         @media (max-width: 640px) {
             .wrap {
                 width: min(100% - 18px, 1180px);
-                padding-top: 8px;
+                padding-top: 6px;
             }
 
             .logo::before {
-                inset: -12px -30px -10px;
-                filter: blur(10px);
+                inset: -10px -38px -8px;
+                filter: blur(12px);
             }
 
             .hero {
