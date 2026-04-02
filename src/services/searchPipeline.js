@@ -25,13 +25,13 @@ function uniqueQueries(queries) {
 function pickQueriesForSource(source, interpretation, userInput) {
   const normalized = uniqueQueries(interpretation?.queries || []);
   const sourceSpecific = normalized.filter((query) => query.toLowerCase().includes(source));
-  const generic = [
-    interpretation?.product,
-    `${interpretation?.product || userInput} oferta`,
-    userInput
-  ];
+  const genericBase = String(interpretation?.product || userInput || "")
+    .replace(/\b(amazon|ebay|aliexpress)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const generic = [genericBase, userInput];
 
-  return uniqueQueries([...sourceSpecific, ...normalized, ...generic]).slice(0, 2);
+  return uniqueQueries([sourceSpecific[0], ...generic]).slice(0, 2);
 }
 
 function withTimeout(promise, timeoutMs, label) {
@@ -98,6 +98,60 @@ function buildAmazonAffiliateUrl(url) {
   const parsed = new URL(url);
   parsed.searchParams.set("tag", env.amazonAffiliateTag);
   return parsed.toString();
+}
+
+function buildSearchTokens(userInput, interpretation) {
+  return uniqueQueries([
+    interpretation?.product,
+    userInput
+  ])
+    .join(" ")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((token) => token.trim())
+    .filter((token) => token && token.length >= 2 && !["de", "la", "el", "en", "un", "una", "oferta", "barato", "premium", "mejor"].includes(token));
+}
+
+function filterProductsForIntent(products, userInput, interpretation) {
+  const tokens = buildSearchTokens(userInput, interpretation);
+  const accessoryKeywords = [
+    "funda",
+    "carcasa",
+    "case",
+    "cover",
+    "protector",
+    "glass",
+    "tempered",
+    "cable",
+    "charger",
+    "cargador",
+    "stand",
+    "holder",
+    "hulle",
+    "hülle",
+    "abdeckung",
+    "smart case"
+  ];
+  const queryText = `${interpretation?.product || ""} ${userInput}`.toLowerCase();
+  const userAskedForAccessory = accessoryKeywords.some((word) => queryText.includes(word));
+
+  return products.filter((product) => {
+    const title = String(product?.title || "").toLowerCase();
+    if (!title) {
+      return false;
+    }
+
+    if (!userAskedForAccessory && accessoryKeywords.some((word) => title.includes(word))) {
+      return false;
+    }
+
+    if (!tokens.length) {
+      return true;
+    }
+
+    const matchingTokens = tokens.filter((token) => title.includes(token));
+    return matchingTokens.length >= Math.min(2, tokens.length);
+  });
 }
 
 function computeAveragePrice(products) {
@@ -212,13 +266,14 @@ async function executeSearch(userInput) {
 
   const interpretation = await interpretQuery(userInput);
   const rawProducts = await searchAllSources(interpretation, userInput);
-  const normalizedProducts = normalizeProducts(rawProducts);
+  const intentFilteredProducts = filterProductsForIntent(rawProducts, userInput, interpretation);
+  const normalizedProducts = normalizeProducts(intentFilteredProducts);
   const averagePrice = computeAveragePrice(normalizedProducts);
   const enrichedProducts = markBargains(normalizedProducts, averagePrice);
   const rankedProducts = rankProducts(enrichedProducts);
 
   logger.info(
-    `Pipeline de busqueda: ${rawProducts.length} raw, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
+    `Pipeline de busqueda: ${rawProducts.length} raw, ${intentFilteredProducts.length} filtrados, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
   );
 
   if (!rankedProducts.length) {

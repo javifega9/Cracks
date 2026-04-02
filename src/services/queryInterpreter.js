@@ -3,9 +3,14 @@ const env = require("../config/env");
 const logger = require("../utils/logger");
 
 let client = null;
+let disabledUntilTs = 0;
 
 function getClient() {
   if (!env.openAiApiKey) {
+    return null;
+  }
+
+  if (disabledUntilTs && Date.now() < disabledUntilTs) {
     return null;
   }
 
@@ -130,6 +135,9 @@ Devuelve exactamente este JSON:
       queries
     };
   } catch (error) {
+    if (error?.status === 429) {
+      disabledUntilTs = Date.now() + 30 * 60 * 1000;
+    }
     logger.warn("OpenAI no pudo interpretar la consulta. Se usa fallback heuristico.", error.message);
     return fallback;
   }

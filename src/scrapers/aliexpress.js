@@ -1,6 +1,15 @@
 const env = require("../config/env");
 const { withPage } = require("../services/browser");
 
+function cleanAliExpressTitle(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^\s+|\s+$/g, "")
+    .replace(/\b(?:\d+[,.]\d+\s*(?:€|eur|usd)|\d+\s*%|sold|verkauft|vorschau anzeigen|ahnliche artikel)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 async function scrapeAliExpress(query) {
   return withPage(async (page) => {
     const searchUrl = `https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(query)}`;
@@ -23,7 +32,15 @@ async function scrapeAliExpress(query) {
           const container = card.closest("div")?.parentElement || card.parentElement || card;
           const text = container?.textContent || "";
           const href = card.getAttribute("href") || "";
-          const title = card.getAttribute("title") || card.textContent?.trim() || "";
+          const rawTitle =
+            card.getAttribute("title") ||
+            card.getAttribute("aria-label") ||
+            card.querySelector("img")?.getAttribute("alt") ||
+            container?.querySelector("img")?.getAttribute("alt") ||
+            container?.querySelector("h1, h2, h3, h4")?.textContent ||
+            card.textContent ||
+            "";
+          const title = cleanAliExpressTitle(rawTitle);
           const priceMatch =
             text.match(/\u20AC\s*([\d,.]+)/) ||
             text.match(/([\d,.]+)\s*\u20AC/) ||

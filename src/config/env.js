@@ -22,7 +22,7 @@ module.exports = {
   scraperTimeoutMs: toNumber(process.env.SCRAPER_TIMEOUT_MS, 25000),
   maxResultsPerSource: toNumber(process.env.MAX_RESULTS_PER_SOURCE, 6),
   maxQueriesGenerated: toNumber(process.env.MAX_QUERIES_GENERATED, 5),
-  maxConcurrentScrapers: toNumber(process.env.MAX_CONCURRENT_SCRAPERS, 2),
+  maxConcurrentScrapers: toNumber(process.env.MAX_CONCURRENT_SCRAPERS, 1),
   browserHeadless: process.env.BROWSER_HEADLESS !== "false",
   logLevel: process.env.LOG_LEVEL || "info",
   proxyServer: process.env.PROXY_SERVER || "",

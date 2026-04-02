@@ -1162,7 +1162,7 @@
                 badges.push(`<div class="badge">${escapeHtml(product.etiqueta)}</div>`);
             }
             if (product.es_chollo) {
-                badges.push(`<div class="badge bargain-badge">ðŸ”¥ Chollo detectado</div>`);
+                badges.push(`<div class="badge bargain-badge">Chollo detectado</div>`);
             }
             if (product.es_amazon) {
                 badges.push(`<div class="badge">Amazon</div>`);
@@ -1175,8 +1175,8 @@
                 ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.titulo)}">`
                 : `<div class="product-media-fallback">Vista previa no disponible</div>`;
 
-            const explanation = product.explicacion || "SelecciÃ³n pensada para decidir rÃ¡pido.";
-            const linkLabel = product.es_amazon ? "ðŸŸ¡ Ver en Amazon" : "ðŸŸ¡ Ver oferta";
+            const explanation = product.explicacion || "Seleccion pensada para decidir rapido.";
+            const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver oferta";
             const linkNote = product.es_afiliado_amazon
                 ? "Enlace de Amazon con tu tag de afiliado."
                 : product.link_original && product.link_original !== product.link
@@ -1238,7 +1238,7 @@
                         <div class="spotlight-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="link-note" style="color: rgba(255,255,255,0.72);">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
                     </div>
-                    <a class="spotlight-button" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(product.es_amazon ? "ðŸŸ¡ Ver en Amazon" : "ðŸŸ¡ Ver oferta")}</a>
+                    <a class="spotlight-button" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(product.es_amazon ? "Ver en Amazon" : "Ver oferta")}</a>
                 </div>
             `;
             spotlightBox.style.display = "block";
