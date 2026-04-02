@@ -10,6 +10,42 @@ function absoluteAmazonUrl(url) {
   return url.startsWith("http") ? url : `https://www.amazon.es${url}`;
 }
 
+function cleanAmazonTitle(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^\s+|\s+$/g, "")
+    .replace(/^\(?\d+\+?\s+ofertas?.*?\)?$/i, "")
+    .replace(/^\d+[.,]?\d*$/i, "")
+    .replace(/^\d+[.,]\d+\s*\u20AC.*$/i, "")
+    .trim();
+}
+
+function isLikelyAmazonProductTitle(title) {
+  const cleaned = cleanAmazonTitle(title);
+  if (!cleaned) {
+    return false;
+  }
+
+  const normalized = cleaned.toLowerCase();
+  if (cleaned.length < 12) {
+    return false;
+  }
+  if (!/[a-z]/i.test(cleaned)) {
+    return false;
+  }
+  if (/^\(?\d+\+?\s+ofertas?/i.test(normalized)) {
+    return false;
+  }
+  if (/^\d+[.,]?\d*$/.test(normalized)) {
+    return false;
+  }
+  if (/^\d+[.,]\d+\s*\u20ac/.test(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
 async function scrapeAmazon(query) {
   const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(query)}`;
   const html = await fetchHtml(searchUrl);
@@ -21,7 +57,12 @@ async function scrapeAmazon(query) {
       return false;
     }
 
-    const title = $(element).find("h2 a span").first().text().trim();
+    const rawTitle =
+      $(element).find("h2 a span").first().text().trim() ||
+      $(element).find("h2 span").first().text().trim() ||
+      $(element).find("a h2 span").first().text().trim() ||
+      "";
+    const title = cleanAmazonTitle(rawTitle);
     const url = absoluteAmazonUrl($(element).find("h2 a").attr("href"));
     const price = $(element).find(".a-price .a-offscreen").first().text().trim() || "";
     const originalPrice =
@@ -34,7 +75,7 @@ async function scrapeAmazon(query) {
       "";
     const ratingMatch = ratingText.match(/([\d,.]+)/);
 
-    if (!title || !url || !price) {
+    if (!title || !isLikelyAmazonProductTitle(title) || !url || !price) {
       return;
     }
 
@@ -56,17 +97,18 @@ async function scrapeAmazon(query) {
       }
 
       const container = $(element).closest("div");
-      const title =
+      const rawTitle =
         $(element).find("span").first().text().trim() ||
         $(element).attr("aria-label") ||
         $(element).text().trim();
+      const title = cleanAmazonTitle(rawTitle);
       const url = absoluteAmazonUrl($(element).attr("href"));
       const price =
         container.find(".a-offscreen").first().text().trim() ||
         container.text().match(/(\d+[.,]\d+)\s*\u20AC/i)?.[0] ||
         "";
 
-      if (!title || !url || !price) {
+      if (!title || !isLikelyAmazonProductTitle(title) || !url || !price) {
         return;
       }
 

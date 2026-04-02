@@ -4,8 +4,6 @@ const { interpretQuery } = require("./queryInterpreter");
 const { normalizeProducts } = require("./normalize");
 const { rankProducts } = require("./ranking");
 const scrapeAmazon = require("../scrapers/amazon");
-const scrapeEbay = require("../scrapers/ebay");
-const scrapeAliExpress = require("../scrapers/aliexpress");
 const logger = require("../utils/logger");
 const { formatEuros, round } = require("../utils/price");
 
@@ -13,9 +11,7 @@ const searchCache = new MemoryCache(env.cacheTtlMs);
 const SCRAPER_TIMEOUT_MS = env.scraperTimeoutMs;
 
 const SCRAPERS = [
-  { source: "amazon", handler: scrapeAmazon },
-  { source: "ebay", handler: scrapeEbay },
-  { source: "aliexpress", handler: scrapeAliExpress }
+  { source: "amazon", handler: scrapeAmazon }
 ];
 
 function uniqueQueries(queries) {
@@ -33,15 +29,11 @@ function normalizeText(value) {
 }
 
 function pickQueriesForSource(source, interpretation, userInput) {
-  const normalized = uniqueQueries(interpretation?.queries || []);
-  const sourceSpecific = normalized.filter((query) => query.toLowerCase().includes(source));
   const genericBase = String(interpretation?.product || userInput || "")
     .replace(/\b(amazon|ebay|aliexpress)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
-  const generic = [genericBase, userInput];
-
-  return uniqueQueries([...generic, sourceSpecific[0]]).slice(0, 2);
+  return uniqueQueries([genericBase, userInput]).slice(0, 2);
 }
 
 function withTimeout(promise, timeoutMs, label) {
@@ -202,7 +194,7 @@ function fallbackProductsForSource(products, source, userInput, interpretation) 
   // preferimos mostrar los primeros antes que dejar la busqueda vacia.
   if (source === "amazon") {
     logger.warn(`Se usa fallback permisivo para Amazon en "${userInput}".`);
-    return products.slice(0, Math.min(env.maxResultsPerSource, products.length));
+    return products.slice(0, Math.min(3, products.length));
   }
 
   return [];
