@@ -87,6 +87,14 @@ async function searchAllSources(interpretation, userInput) {
         const items = await withTimeout(handler(sourceQuery), SCRAPER_TIMEOUT_MS, `El scraper ${source}`);
         const relevantItems = filterProductsForIntent(items, userInput, interpretation);
         const fallbackItems = relevantItems.length ? relevantItems : fallbackProductsForSource(items, source, userInput, interpretation);
+        if (items.length) {
+          logger.info(
+            `Muestra ${source}: ${items
+              .slice(0, 2)
+              .map((item) => String(item.title || "").slice(0, 120))
+              .join(" | ")}`
+          );
+        }
         logger.info(
           `Scraper ${source}: ${items.length} resultados, ${relevantItems.length} relevantes, ${fallbackItems.length} utiles para "${sourceQuery}"`
         );
@@ -190,11 +198,11 @@ function fallbackProductsForSource(products, source, userInput, interpretation) 
     return withMatches;
   }
 
-  // Si Amazon devuelve productos pero ninguno pasa el filtro, preferimos mostrar los primeros
-  // antes que dejar la busqueda vacia por una heuristica demasiado estricta.
+  // Camino de seguridad: si Amazon devuelve productos pero ninguno pasa el filtro,
+  // preferimos mostrar los primeros antes que dejar la busqueda vacia.
   if (source === "amazon") {
     logger.warn(`Se usa fallback permisivo para Amazon en "${userInput}".`);
-    return products.slice(0, Math.min(3, products.length));
+    return products.slice(0, Math.min(env.maxResultsPerSource, products.length));
   }
 
   return [];
@@ -313,12 +321,19 @@ async function executeSearch(userInput) {
   const interpretation = await interpretQuery(userInput);
   const rawProducts = await searchAllSources(interpretation, userInput);
   const normalizedProducts = normalizeProducts(rawProducts);
-  const averagePrice = computeAveragePrice(normalizedProducts);
-  const enrichedProducts = markBargains(normalizedProducts, averagePrice);
+  const emergencyProducts =
+    normalizedProducts.length || !rawProducts.length
+      ? normalizedProducts
+      : normalizeProducts(
+          rawProducts.filter((product) => String(product?.source || "").toLowerCase() === "amazon").slice(0, 3)
+        );
+  const finalInputProducts = emergencyProducts.length ? emergencyProducts : normalizedProducts;
+  const averagePrice = computeAveragePrice(finalInputProducts);
+  const enrichedProducts = markBargains(finalInputProducts, averagePrice);
   const rankedProducts = rankProducts(enrichedProducts);
 
   logger.info(
-    `Pipeline de busqueda: ${rawProducts.length} relevantes, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
+    `Pipeline de busqueda: ${rawProducts.length} utiles, ${finalInputProducts.length} normalizados, ${rankedProducts.length} finales.`
   );
 
   if (!rankedProducts.length) {
