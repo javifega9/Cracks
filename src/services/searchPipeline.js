@@ -18,13 +18,20 @@ const SCRAPERS = [
   { source: "aliexpress", handler: scrapeAliExpress }
 ];
 
-function pickQueryForSource(source, queries) {
-  const normalized = queries.map((query) => String(query || "").trim()).filter(Boolean);
-  return (
-    normalized.find((query) => query.toLowerCase().includes(source)) ||
-    normalized[0] ||
-    ""
-  );
+function uniqueQueries(queries) {
+  return [...new Set((queries || []).map((query) => String(query || "").trim()).filter(Boolean))];
+}
+
+function pickQueriesForSource(source, interpretation, userInput) {
+  const normalized = uniqueQueries(interpretation?.queries || []);
+  const sourceSpecific = normalized.filter((query) => query.toLowerCase().includes(source));
+  const generic = [
+    interpretation?.product,
+    `${interpretation?.product || userInput} oferta`,
+    userInput
+  ];
+
+  return uniqueQueries([...sourceSpecific, ...normalized, ...generic]).slice(0, 2);
 }
 
 function withTimeout(promise, timeoutMs, label) {
@@ -40,20 +47,27 @@ function withTimeout(promise, timeoutMs, label) {
   });
 }
 
-async function searchAllSources(queries) {
-  // Cada marketplace usa solo la query más relevante para mantener coste y latencia bajos.
+async function searchAllSources(interpretation, userInput) {
+  // Cada marketplace intenta una query afinada y, si no devuelve nada, una version mas simple.
   const tasks = SCRAPERS.map(async ({ source, handler }) => {
-    const sourceQuery = pickQueryForSource(source, queries);
-    if (!sourceQuery) {
+    const sourceQueries = pickQueriesForSource(source, interpretation, userInput);
+    if (!sourceQueries.length) {
       return [];
     }
 
-    try {
-      return await withTimeout(handler(sourceQuery), SCRAPER_TIMEOUT_MS, `El scraper ${source}`);
-    } catch (error) {
-      logger.warn(`El scraper ${source} ha fallado.`, error.message);
-      return [];
+    for (const sourceQuery of sourceQueries) {
+      try {
+        const items = await withTimeout(handler(sourceQuery), SCRAPER_TIMEOUT_MS, `El scraper ${source}`);
+        logger.info(`Scraper ${source}: ${items.length} resultados para "${sourceQuery}"`);
+        if (items.length) {
+          return items;
+        }
+      } catch (error) {
+        logger.warn(`El scraper ${source} ha fallado para "${sourceQuery}".`, error.message);
+      }
     }
+
+    return [];
   });
 
   const results = await Promise.all(tasks);
@@ -75,8 +89,7 @@ function computeAveragePrice(products) {
   if (!prices.length) {
     return null;
   }
-  const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
-  return round(average);
+  return round(prices.reduce((sum, price) => sum + price, 0) / prices.length);
 }
 
 function markBargains(products, averagePrice) {
@@ -139,11 +152,7 @@ function pickFeaturedProducts(products) {
     }
   };
 
-  takeOne(
-    (items) => items[0],
-    "Mejor opcion",
-    "Mejor opcion"
-  );
+  takeOne((items) => items[0], "Mejor opcion", "Mejor opcion");
 
   takeOne(
     (items) =>
@@ -157,8 +166,7 @@ function pickFeaturedProducts(products) {
   );
 
   takeOne(
-    (items) =>
-      [...items].sort((left, right) => left.price - right.price)[0],
+    (items) => [...items].sort((left, right) => left.price - right.price)[0],
     "Opcion mas barata",
     "Mas barato"
   );
@@ -175,8 +183,7 @@ function buildFallbackResponse(userInput) {
     precio_medio: null,
     productos: [],
     top_3_mejores_opciones: [],
-    message:
-      "No hemos podido recuperar ofertas ahora mismo. Intenta de nuevo en unos segundos."
+    message: "No hemos podido recuperar ofertas ahora mismo. Intenta de nuevo en unos segundos."
   };
 }
 
@@ -188,11 +195,15 @@ async function executeSearch(userInput) {
   }
 
   const interpretation = await interpretQuery(userInput);
-  const rawProducts = await searchAllSources(interpretation.queries);
+  const rawProducts = await searchAllSources(interpretation, userInput);
   const normalizedProducts = normalizeProducts(rawProducts);
   const averagePrice = computeAveragePrice(normalizedProducts);
   const enrichedProducts = markBargains(normalizedProducts, averagePrice);
   const rankedProducts = rankProducts(enrichedProducts);
+
+  logger.info(
+    `Pipeline de busqueda: ${rawProducts.length} raw, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
+  );
 
   if (!rankedProducts.length) {
     return buildFallbackResponse(userInput);
@@ -201,7 +212,6 @@ async function executeSearch(userInput) {
   const featuredProducts = pickFeaturedProducts(rankedProducts).map(withSpanishShape);
   const allProducts = rankedProducts.map(withSpanishShape);
 
-  // Mantenemos la forma de respuesta que el frontend actual ya entiende.
   const payload = {
     query_original: userInput,
     query_mejorada: interpretation.queries[0] || interpretation.product || userInput,

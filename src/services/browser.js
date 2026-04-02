@@ -6,13 +6,16 @@ let browserPromise = null;
 
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless: env.browserHeadless,
-      proxy: env.proxyServer ? { server: env.proxyServer } : undefined
-    }).catch((error) => {
-      browserPromise = null;
-      throw error;
-    });
+    browserPromise = chromium
+      .launch({
+        headless: env.browserHeadless,
+        args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"],
+        proxy: env.proxyServer ? { server: env.proxyServer } : undefined
+      })
+      .catch((error) => {
+        browserPromise = null;
+        throw error;
+      });
   }
 
   return browserPromise;
@@ -26,7 +29,13 @@ async function createPage() {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
   });
 
-  // Reducimos peso bloqueando recursos no necesarios para extracción de datos.
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => false
+    });
+  });
+
+  // Bloqueamos recursos pesados para reducir tiempo y consumo.
   await context.route("**/*", (route) => {
     const type = route.request().resourceType();
     if (["image", "font", "media"].includes(type)) {

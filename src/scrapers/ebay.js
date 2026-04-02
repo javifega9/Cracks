@@ -5,12 +5,13 @@ async function scrapeEbay(query) {
   return withPage(async (page) => {
     const searchUrl = `https://www.ebay.es/sch/i.html?_nkw=${encodeURIComponent(query)}`;
     await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
     await page.waitForSelector(".s-item", { timeout: 5000 }).catch(() => {});
 
-    return page.$$eval(
+    const items = await page.$$eval(
       ".s-item",
       (nodes, limit) =>
-        nodes.slice(0, limit).map((node) => {
+        nodes.map((node) => {
           const title = node.querySelector(".s-item__title")?.textContent?.trim() || "";
           const priceText = node.querySelector(".s-item__price")?.textContent?.trim() || "";
           const oldPriceText =
@@ -36,10 +37,12 @@ async function scrapeEbay(query) {
             url: link
           };
         }),
-      env.maxResultsPerSource
-    ).then((items) =>
-      items.filter((item) => item.title && item.url && !item.title.toLowerCase().includes("shop on ebay"))
+      env.maxResultsPerSource * 3
     );
+
+    return items
+      .filter((item) => item.title && item.url && item.price && !item.title.toLowerCase().includes("shop on ebay"))
+      .slice(0, env.maxResultsPerSource);
   });
 }
 
