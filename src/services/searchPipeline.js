@@ -22,6 +22,16 @@ function uniqueQueries(queries) {
   return [...new Set((queries || []).map((query) => String(query || "").trim()).filter(Boolean))];
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function pickQueriesForSource(source, interpretation, userInput) {
   const normalized = uniqueQueries(interpretation?.queries || []);
   const sourceSpecific = normalized.filter((query) => query.toLowerCase().includes(source));
@@ -76,11 +86,12 @@ async function searchAllSources(interpretation, userInput) {
       try {
         const items = await withTimeout(handler(sourceQuery), SCRAPER_TIMEOUT_MS, `El scraper ${source}`);
         const relevantItems = filterProductsForIntent(items, userInput, interpretation);
+        const fallbackItems = relevantItems.length ? relevantItems : fallbackProductsForSource(items, source, userInput, interpretation);
         logger.info(
-          `Scraper ${source}: ${items.length} resultados, ${relevantItems.length} relevantes para "${sourceQuery}"`
+          `Scraper ${source}: ${items.length} resultados, ${relevantItems.length} relevantes, ${fallbackItems.length} utiles para "${sourceQuery}"`
         );
-        if (relevantItems.length) {
-          return relevantItems;
+        if (fallbackItems.length) {
+          return fallbackItems;
         }
       } catch (error) {
         logger.warn(`El scraper ${source} ha fallado para "${sourceQuery}".`, error.message);
@@ -108,9 +119,9 @@ function buildSearchTokens(userInput, interpretation) {
     interpretation?.product,
     userInput
   ])
+    .map((item) => normalizeText(item))
     .join(" ")
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
+    .split(/\s+/)
     .map((token) => token.trim())
     .filter((token) => token && token.length >= 2 && !["de", "la", "el", "en", "un", "una", "oferta", "barato", "premium", "mejor"].includes(token));
 }
@@ -135,11 +146,11 @@ function filterProductsForIntent(products, userInput, interpretation) {
     "abdeckung",
     "smart case"
   ];
-  const queryText = `${interpretation?.product || ""} ${userInput}`.toLowerCase();
+  const queryText = normalizeText(`${interpretation?.product || ""} ${userInput}`);
   const userAskedForAccessory = accessoryKeywords.some((word) => queryText.includes(word));
 
   return products.filter((product) => {
-    const title = String(product?.title || "").toLowerCase();
+    const title = normalizeText(product?.title || "");
     if (!title) {
       return false;
     }
@@ -155,6 +166,38 @@ function filterProductsForIntent(products, userInput, interpretation) {
     const matchingTokens = [...new Set(tokens.filter((token) => title.includes(token)))];
     return matchingTokens.length >= 1;
   });
+}
+
+function fallbackProductsForSource(products, source, userInput, interpretation) {
+  if (!products.length) {
+    return [];
+  }
+
+  const tokens = buildSearchTokens(userInput, interpretation);
+  const scored = products
+    .map((product) => {
+      const title = normalizeText(product?.title || "");
+      const matches = tokens.filter((token) => title.includes(token)).length;
+      return {
+        product,
+        matches
+      };
+    })
+    .sort((left, right) => right.matches - left.matches);
+
+  const withMatches = scored.filter((item) => item.matches > 0).map((item) => item.product);
+  if (withMatches.length) {
+    return withMatches;
+  }
+
+  // Si Amazon devuelve productos pero ninguno pasa el filtro, preferimos mostrar los primeros
+  // antes que dejar la busqueda vacia por una heuristica demasiado estricta.
+  if (source === "amazon") {
+    logger.warn(`Se usa fallback permisivo para Amazon en "${userInput}".`);
+    return products.slice(0, Math.min(3, products.length));
+  }
+
+  return [];
 }
 
 function computeAveragePrice(products) {
