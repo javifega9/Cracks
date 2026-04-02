@@ -239,6 +239,8 @@ function withSpanishShape(product) {
     es_chollo: Boolean(product.es_chollo),
     es_amazon: Boolean(product.es_amazon),
     es_afiliado_amazon: Boolean(product.es_afiliado_amazon),
+    categoria_destacada: product.categoria_destacada || null,
+    etiqueta: product.etiqueta || null,
     score: product.score,
     priceScore: product.priceScore
   };

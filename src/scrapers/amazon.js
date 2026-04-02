@@ -10,6 +10,16 @@ function absoluteAmazonUrl(url) {
   return url.startsWith("http") ? url : `https://www.amazon.es${url}`;
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function cleanAmazonTitle(value) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -46,6 +56,19 @@ function isLikelyAmazonProductTitle(title) {
   return true;
 }
 
+function titleMatchesQuery(title, query) {
+  const normalizedTitle = normalizeText(title);
+  const tokens = normalizeText(query)
+    .split(" ")
+    .filter((token) => token && token.length >= 2 && !["oferta", "amazon", "barato", "mejor", "precio"].includes(token));
+
+  if (!tokens.length) {
+    return true;
+  }
+
+  return tokens.some((token) => normalizedTitle.includes(token));
+}
+
 async function scrapeAmazon(query) {
   const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(query)}`;
   const html = await fetchHtml(searchUrl);
@@ -75,7 +98,7 @@ async function scrapeAmazon(query) {
       "";
     const ratingMatch = ratingText.match(/([\d,.]+)/);
 
-    if (!title || !isLikelyAmazonProductTitle(title) || !url || !price) {
+    if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
       return;
     }
 
@@ -108,7 +131,7 @@ async function scrapeAmazon(query) {
         container.text().match(/(\d+[.,]\d+)\s*\u20AC/i)?.[0] ||
         "";
 
-      if (!title || !isLikelyAmazonProductTitle(title) || !url || !price) {
+      if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
         return;
       }
 
