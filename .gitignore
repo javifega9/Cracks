@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 saved_searches.json
+node_modules/
+.cache/
+.playwright/
+npm-debug.log*

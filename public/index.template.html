@@ -1,0 +1,1506 @@
+﻿
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cracks</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --bg: #f7f7f4;
+            --panel: rgba(255, 255, 255, 0.9);
+            --panel-strong: #ffffff;
+            --text: #111111;
+            --muted: #666666;
+            --line: rgba(17, 17, 17, 0.08);
+            --primary: #ffd600;
+            --primary-dark: #f1c400;
+            --primary-soft: #fff8cc;
+            --accent: #111111;
+            --accent-soft: #f3f3f3;
+            --highlight: #fffbe0;
+            --soft-green: #edf8ee;
+            --soft-green-border: #b6d8bb;
+            --shadow: 0 24px 60px rgba(17, 17, 17, 0.08);
+            --shadow-soft: 0 16px 34px rgba(17, 17, 17, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            position: relative;
+            isolation: isolate;
+            margin: 0;
+            font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(ellipse 62% 28% at 50% 0%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.995) 48%, rgba(255, 255, 255, 0) 100%),
+                radial-gradient(circle at 22% 0%, rgba(255, 184, 0, 0.08) 0, transparent 22%),
+                radial-gradient(circle at 82% 8%, rgba(17, 17, 17, 0.035) 0, transparent 16%),
+                linear-gradient(180deg, #ffffff 0%, #ffffff 22%, #fffef9 44%, var(--bg) 100%);
+            min-height: 100vh;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 260px;
+            background: linear-gradient(180deg, #ffffff 0%, #ffffff 58%, rgba(255, 255, 255, 0.94) 76%, rgba(255, 255, 255, 0) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .wrap {
+            position: relative;
+            z-index: 1;
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 4px 0 88px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: center;
+            padding-top: 0;
+            margin-bottom: -6px;
+        }
+
+        .logo {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: min(980px, 100%);
+            padding: 0 18px 0;
+            isolation: isolate;
+        }
+
+        .logo::before {
+            content: "";
+            position: absolute;
+            inset: -10px -56px -6px;
+            background: radial-gradient(
+                ellipse at center,
+                rgba(255, 255, 255, 1) 0%,
+                rgba(255, 255, 255, 0.992) 48%,
+                rgba(255, 255, 255, 0.9) 72%,
+                rgba(255, 255, 255, 0.16) 88%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            filter: blur(12px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .logo img {
+            width: min(820px, 96vw);
+            max-height: 170px;
+            height: auto;
+            display: block;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 4px 10px rgba(17, 17, 17, 0.03));
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            padding: 0 0 28px;
+            box-shadow: none;
+            min-height: calc(100vh - 96px);
+            display: grid;
+            align-items: center;
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            width: 420px;
+            height: 420px;
+            right: -120px;
+            top: -120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 214, 0, 0.18) 0%, transparent 66%);
+            pointer-events: none;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            left: -90px;
+            bottom: -140px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(17, 17, 17, 0.06) 0%, transparent 68%);
+            pointer-events: none;
+        }
+
+        .hero-grid {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 26px;
+            align-items: center;
+            justify-items: center;
+            width: min(980px, 100%);
+            margin: 0 auto;
+        }
+
+        .hero-main {
+            width: min(100%, 960px);
+            display: grid;
+            justify-items: center;
+            gap: 18px;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1px;
+            line-height: 1;
+            opacity: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: rgba(17, 17, 17, 0.78);
+            font-size: 1.02rem;
+            font-weight: 600;
+            line-height: 1.5;
+            max-width: 720px;
+            letter-spacing: -0.01em;
+        }
+
+        .how-it-works {
+            width: min(100%, 840px);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 250, 228, 0.88) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.18);
+            border-radius: 24px;
+            padding: 20px 22px;
+            box-shadow: 0 16px 34px rgba(17, 17, 17, 0.05);
+            text-align: left;
+        }
+
+        .how-it-works-title {
+            margin: 0 0 8px;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #111111;
+        }
+
+        .how-it-works-text {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+            line-height: 1.65;
+        }
+
+        .search-shell {
+            width: min(100%, 860px);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 252, 238, 0.96) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.18);
+            border-radius: 34px;
+            padding: 22px;
+            box-shadow:
+                0 28px 72px rgba(17, 17, 17, 0.08),
+                0 10px 24px rgba(255, 214, 0, 0.08);
+            backdrop-filter: blur(16px);
+        }
+
+        .search-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+        }
+
+        .query-wrap {
+            position: relative;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 20px 22px;
+            border-radius: 22px;
+            border: 1px solid rgba(17, 17, 17, 0.1);
+            font-size: 1.08rem;
+            font-weight: 500;
+            outline: none;
+            background: rgba(255, 255, 255, 0.96);
+            color: #111111;
+        }
+
+        input[type="text"]:focus {
+            border-color: rgba(255, 214, 0, 0.95);
+            box-shadow: 0 0 0 4px rgba(255, 214, 0, 0.22);
+        }
+
+        .query-ghost {
+            position: absolute;
+            left: 22px;
+            right: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(102, 102, 102, 0.58);
+            font-size: 1.08rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.32s ease;
+        }
+
+        .query-ghost.is-hidden {
+            opacity: 0;
+        }
+
+        button {
+            border: 0;
+            border-radius: 20px;
+            padding: 0 24px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            min-height: 62px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .primary-button {
+            background: linear-gradient(135deg, #ffeb73 0%, #ffc107 100%);
+            color: #111111;
+            box-shadow: 0 18px 30px rgba(255, 184, 0, 0.24);
+            min-width: 170px;
+        }
+
+        .primary-button:hover {
+            background: linear-gradient(135deg, #fff08f 0%, #ffca28 100%);
+            transform: translateY(-1px);
+        }
+
+        .secondary-button {
+            background: linear-gradient(180deg, #151515 0%, #0c0c0c 100%);
+            color: #ffffff;
+            border: 1px solid rgba(17, 17, 17, 0.96);
+            box-shadow: 0 12px 24px rgba(17, 17, 17, 0.12);
+        }
+
+        .secondary-button:hover {
+            background: linear-gradient(180deg, #1d1d1d 0%, #111111 100%);
+            transform: translateY(-1px);
+        }
+
+        .search-utility-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .loading-shell {
+            display: none;
+            margin-top: 18px;
+            text-align: left;
+        }
+
+        .loading-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            color: rgba(17, 17, 17, 0.76);
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .loading-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(17, 17, 17, 0.08);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .loading-bar {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #ffd600 0%, #ffb300 100%);
+            box-shadow: 0 6px 14px rgba(255, 193, 7, 0.24);
+            transition: width 0.28s ease;
+        }
+
+        .status {
+            margin-top: 18px;
+            color: rgba(17, 17, 17, 0.72);
+            min-height: 24px;
+            font-size: 0.95rem;
+        }
+
+        .meta {
+            display: none;
+            margin-top: 24px;
+            background: linear-gradient(180deg, #fffef2 0%, var(--highlight) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.3);
+            border-radius: 22px;
+            padding: 18px 20px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .meta strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #111111;
+        }
+
+        .section {
+            margin-top: 40px;
+            display: none;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .section h2 {
+            margin: 0;
+            font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .section-intro {
+            color: var(--muted);
+            font-size: 0.98rem;
+            line-height: 1.55;
+            max-width: 720px;
+            margin-top: 8px;
+        }
+
+        .spotlight {
+            display: none;
+            margin-top: 22px;
+            background:
+                radial-gradient(circle at top left, rgba(255, 193, 7, 0.16) 0%, transparent 30%),
+                linear-gradient(135deg, rgba(11, 11, 11, 0.985) 0%, rgba(24, 24, 24, 0.96) 100%);
+            color: white;
+            border-radius: 28px;
+            padding: 22px 24px;
+            box-shadow: 0 22px 44px rgba(17, 17, 17, 0.18);
+            border: 1px solid rgba(255, 214, 0, 0.12);
+        }
+
+        .spotlight-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: rgba(255, 214, 0, 0.16);
+            color: #ffe98a;
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .spotlight-title {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            letter-spacing: -0.05em;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .spotlight-copy {
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 0.98rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .spotlight-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .spotlight-price {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .spotlight-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #ffe04d 0%, #ffd600 100%);
+            color: #111111;
+            text-decoration: none;
+            font-weight: 800;
+            box-shadow: 0 14px 24px rgba(255, 214, 0, 0.2);
+        }
+
+        .spotlight-button:hover {
+            background: linear-gradient(135deg, #ffe766 0%, #ffd600 100%);
+            text-decoration: none;
+        }
+
+        .compare-strip {
+            display: none;
+            margin-top: 20px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .compare-item {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 251, 235, 0.96) 100%);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow-soft);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .compare-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 34px rgba(17, 17, 17, 0.08);
+            border-color: rgba(255, 214, 0, 0.32);
+        }
+
+        .compare-item strong {
+            display: block;
+            font-size: 0.88rem;
+            color: #111111;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .compare-item-title {
+            font-size: 0.96rem;
+            font-weight: 700;
+            line-height: 1.45;
+            margin-bottom: 8px;
+        }
+
+        .compare-item-price {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .featured-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .saved-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: var(--shadow-soft);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 22px 40px rgba(17, 17, 17, 0.08);
+            border-color: rgba(255, 214, 0, 0.28);
+        }
+
+        .top-card {
+            border-color: rgba(255, 214, 0, 0.8);
+            background: linear-gradient(180deg, #fffef4 0%, #ffffff 100%);
+        }
+
+        .featured-card {
+            position: relative;
+        }
+
+        .featured-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 24px;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #111111;
+            color: #ffffff;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .badge-row .badge:first-child {
+            background: #ffd600;
+            color: #111111;
+        }
+
+        .bargain-badge {
+            background: var(--soft-green);
+            color: #166534;
+            border: 1px solid var(--soft-green-border);
+        }
+
+        .title {
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.4;
+        }
+
+        .price {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.06em;
+            line-height: 1;
+        }
+
+        .store,
+        .saved-meta {
+            color: var(--muted);
+            margin-bottom: 0;
+        }
+
+        .product-explanation {
+            color: var(--text);
+            font-size: 0.96rem;
+            line-height: 1.55;
+            background: rgba(255, 214, 0, 0.12);
+            border: 1px solid rgba(255, 214, 0, 0.18);
+            border-radius: 16px;
+            padding: 12px 14px;
+            font-weight: 500;
+        }
+
+        .featured-kicker {
+            color: #111111;
+            font-size: 0.86rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .card a {
+            color: var(--primary-dark);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .card a:hover {
+            text-decoration: underline;
+        }
+
+        .product-media {
+            aspect-ratio: 4 / 3;
+            border-radius: 18px;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(255, 214, 0, 0.16) 0%, transparent 38%),
+                linear-gradient(180deg, #ffffff 0%, #f6f6f2 100%);
+            border: 1px solid rgba(17, 17, 17, 0.08);
+            display: grid;
+            place-items: center;
+        }
+
+        .product-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .product-media-fallback {
+            color: var(--muted);
+            font-size: 0.92rem;
+            text-align: center;
+            padding: 18px;
+            line-height: 1.5;
+        }
+
+        .card-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .card-footer {
+            display: grid;
+            gap: 12px;
+            margin-top: auto;
+        }
+
+        .card-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 52px;
+            padding: 0 18px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #ffe04d 0%, #ffd600 100%);
+            border: 1px solid rgba(255, 214, 0, 0.35);
+            color: #111111;
+            text-decoration: none;
+            white-space: nowrap;
+            font-weight: 800;
+            box-shadow: 0 12px 20px rgba(255, 214, 0, 0.18);
+            letter-spacing: -0.01em;
+        }
+
+        .card-link:hover {
+            text-decoration: none;
+            background: linear-gradient(135deg, #ffe766 0%, #ffd600 100%);
+        }
+
+        .link-note {
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        .saved-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .small-button {
+            min-height: auto;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 860px) {
+            .header {
+                margin-bottom: -2px;
+            }
+
+            .logo {
+                width: min(100%, 920px);
+                padding: 0 10px 0;
+            }
+
+            .logo img {
+                width: min(720px, 96vw);
+                max-height: 142px;
+            }
+
+            .featured-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .search-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .search-shell {
+                width: 100%;
+                padding: 18px;
+            }
+
+            .search-utility-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .section-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .wrap {
+                width: min(100% - 18px, 1180px);
+                padding-top: 6px;
+            }
+
+            .logo::before {
+                inset: -8px -22px -6px;
+                filter: blur(10px);
+            }
+
+            .hero {
+                min-height: auto;
+                padding: 0 0 18px;
+            }
+
+            .wrap {
+                padding-bottom: 72px;
+            }
+        }
+    </style>
+</head>
+    <body>
+    <div class="wrap">
+        <header class="header">
+            <div class="logo">
+                <img src="/logo.svg" alt="CRACKS logo" />
+            </div>
+        </header>
+
+        <section class="hero">
+            <div class="hero-grid">
+                <div class="hero-main">
+                    <h1>CRACKS</h1>
+                    <p class="subtitle">
+                        Encuentra las mejores ofertas de internet en segundos
+                    </p>
+
+                    <div class="search-shell">
+                        <div class="search-bar">
+                            <div class="query-wrap">
+                                <input id="query" type="text" placeholder="">
+                                <div id="queryGhost" class="query-ghost">iphone 15</div>
+                            </div>
+                            <button id="searchButton" class="primary-button">Buscar</button>
+                        </div>
+
+                        <div class="search-utility-row">
+                            <button id="saveButton" class="secondary-button" type="button">Guardar busqueda</button>
+                        </div>
+
+                        <div class="loading-shell" id="loadingShell" aria-hidden="true">
+                            <div class="loading-label">
+                                <span id="loadingStep">Preparando busqueda...</span>
+                                <span id="loadingPercent">0%</span>
+                            </div>
+                            <div class="loading-track">
+                                <div class="loading-bar" id="loadingBar"></div>
+                            </div>
+                        </div>
+
+                        <div class="status" id="status">Listo para buscar.</div>
+                        <div class="meta" id="meta"></div>
+                    </div>
+
+                    <div class="how-it-works">
+                        <p class="how-it-works-title">Como funciona</p>
+                        <p class="how-it-works-text">
+                            Cracks interpreta tu busqueda, revisa resultados en diferentes portales,
+                            compara precios y destaca solo tres opciones utiles: la mejor opcion general,
+                            la mejor calidad-precio y la mas barata disponible en ese momento.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="topSection">
+            <div class="section-header">
+                <div>
+                    <h2>3 productos destacados</h2>
+                    <div class="section-intro">
+                        Cracks solo te muestra tres opciones listas para decidir: la mejor opcion general,
+                        la mejor calidad-precio y la mas barata.
+                    </div>
+                </div>
+            </div>
+            <div class="spotlight" id="spotlightBox"></div>
+            <div class="compare-strip" id="compareStrip"></div>
+            <div class="featured-grid" id="topGrid"></div>
+        </section>
+
+        <section class="section" id="savedSection" style="display:block;">
+            <div class="section-header">
+                <h2>Busquedas guardadas</h2>
+                <button id="reviewSavedButton" class="secondary-button" type="button">Revisar ahora</button>
+            </div>
+            <div class="saved-grid" id="savedGrid"></div>
+        </section>
+
+        <div class="status" style="margin-top: 22px;">
+            Como afiliado de Amazon, obtengo ingresos por compras adscritas
+        </div>
+    </div>
+
+    <script>
+        const LOCAL_STORAGE_KEY = "cracks_saved_searches";
+        const VISITOR_STORAGE_KEY = "cracks_visitor_id";
+        const serverStorageEnabled = __SERVER_STORAGE_ENABLED__;
+        const queryInput = document.getElementById("query");
+        const queryGhost = document.getElementById("queryGhost");
+        const searchButton = document.getElementById("searchButton");
+        const saveButton = document.getElementById("saveButton");
+        const reviewSavedButton = document.getElementById("reviewSavedButton");
+        const statusBox = document.getElementById("status");
+        const metaBox = document.getElementById("meta");
+        const loadingShell = document.getElementById("loadingShell");
+        const loadingBar = document.getElementById("loadingBar");
+        const loadingPercent = document.getElementById("loadingPercent");
+        const loadingStep = document.getElementById("loadingStep");
+        const topSection = document.getElementById("topSection");
+        const spotlightBox = document.getElementById("spotlightBox");
+        const compareStrip = document.getElementById("compareStrip");
+        const topGrid = document.getElementById("topGrid");
+        const savedGrid = document.getElementById("savedGrid");
+        const rotatingPlaceholders = [
+            "iphone 15",
+            "cafetera nespresso",
+            "portatil lenovo barato",
+            "zapatillas running nike",
+            "aspiradora sin cable"
+        ];
+        let latestSearchData = null;
+        let loadingInterval = null;
+        let loadingStepInterval = null;
+
+        function generateVisitorId() {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                return window.crypto.randomUUID();
+            }
+
+            return `visitor-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        function getVisitorId() {
+            try {
+                const existing = localStorage.getItem(VISITOR_STORAGE_KEY);
+                if (existing) {
+                    return existing;
+                }
+
+                const created = generateVisitorId();
+                localStorage.setItem(VISITOR_STORAGE_KEY, created);
+                return created;
+            } catch (error) {
+                return generateVisitorId();
+            }
+        }
+
+        const visitorId = getVisitorId();
+
+        function escapeHtml(text) {
+            return String(text ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function todayKey() {
+            return new Date().toISOString().slice(0, 10);
+        }
+
+        function nowLocalIso() {
+            return new Date().toLocaleString();
+        }
+
+        function startPlaceholderRotation() {
+            let placeholderIndex = 0;
+            let isTransitioning = false;
+
+            const syncGhostVisibility = () => {
+                const shouldHide = document.activeElement === queryInput || queryInput.value.trim();
+                queryGhost.classList.toggle("is-hidden", Boolean(shouldHide));
+            };
+
+            const applyPlaceholder = (nextText) => {
+                if (document.activeElement === queryInput || queryInput.value.trim() || isTransitioning) {
+                    syncGhostVisibility();
+                    return;
+                }
+                queryGhost.textContent = nextText;
+                syncGhostVisibility();
+            };
+
+            applyPlaceholder(rotatingPlaceholders[placeholderIndex]);
+
+            setInterval(() => {
+                placeholderIndex = (placeholderIndex + 1) % rotatingPlaceholders.length;
+                if (document.activeElement === queryInput || queryInput.value.trim()) {
+                    syncGhostVisibility();
+                    return;
+                }
+                isTransitioning = true;
+                queryGhost.classList.add("is-hidden");
+                setTimeout(() => {
+                    queryGhost.textContent = rotatingPlaceholders[placeholderIndex];
+                    queryGhost.classList.remove("is-hidden");
+                    isTransitioning = false;
+                }, 220);
+            }, 2400);
+
+            queryInput.addEventListener("focus", syncGhostVisibility);
+            queryInput.addEventListener("blur", syncGhostVisibility);
+            queryInput.addEventListener("input", syncGhostVisibility);
+        }
+
+        function scrollResultsIntoView() {
+            requestAnimationFrame(() => {
+                const top = Math.max(topSection.getBoundingClientRect().top + window.scrollY - 18, 0);
+                window.scrollTo({ top, behavior: "smooth" });
+            });
+        }
+
+        function stopLoadingState(finalPercent = 100) {
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+                loadingInterval = null;
+            }
+            if (loadingStepInterval) {
+                clearInterval(loadingStepInterval);
+                loadingStepInterval = null;
+            }
+
+            loadingBar.style.width = `${finalPercent}%`;
+            loadingPercent.textContent = `${Math.round(finalPercent)}%`;
+
+            setTimeout(() => {
+                loadingShell.style.display = "none";
+                loadingShell.setAttribute("aria-hidden", "true");
+                loadingBar.style.width = "0%";
+                loadingPercent.textContent = "0%";
+                loadingStep.textContent = "Preparando busqueda...";
+            }, 320);
+        }
+
+        function startLoadingState() {
+            const steps = [
+                "Interpretando tu busqueda...",
+                "Revisando portales y precios...",
+                "Comparando opciones destacadas...",
+                "Preparando la mejor recomendacion..."
+            ];
+
+            let progress = 8;
+            let stepIndex = 0;
+
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+            }
+            if (loadingStepInterval) {
+                clearInterval(loadingStepInterval);
+            }
+
+            loadingShell.style.display = "block";
+            loadingShell.setAttribute("aria-hidden", "false");
+            loadingBar.style.width = `${progress}%`;
+            loadingPercent.textContent = `${progress}%`;
+            loadingStep.textContent = steps[stepIndex];
+
+            loadingInterval = setInterval(() => {
+                if (progress >= 90) {
+                    return;
+                }
+
+                const increment = progress < 40 ? 7 : progress < 70 ? 4 : 2;
+                progress = Math.min(progress + increment, 90);
+                loadingBar.style.width = `${progress}%`;
+                loadingPercent.textContent = `${Math.round(progress)}%`;
+            }, 260);
+
+            loadingStepInterval = setInterval(() => {
+                stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+                loadingStep.textContent = steps[stepIndex];
+            }, 950);
+        }
+
+        function getLocalSavedSearches() {
+            try {
+                const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function setLocalSavedSearches(items) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
+        }
+
+        async function readJsonResponse(response) {
+            const rawText = await response.text();
+
+            try {
+                return rawText ? JSON.parse(rawText) : {};
+            } catch (error) {
+                if (!response.ok) {
+                    throw new Error("Error interno del servidor. Intenta de nuevo en unos segundos.");
+                }
+                throw new Error("La respuesta del servidor no tiene un formato valido.");
+            }
+        }
+
+        function buildTrackedLink(product) {
+            const params = new URLSearchParams({
+                url: product.link || "",
+                title: product.titulo || "",
+                query: (latestSearchData && latestSearchData.query_original) || queryInput.value.trim() || "",
+                visitor_id: visitorId
+            });
+            return `/out?${params.toString()}`;
+        }
+
+        function upsertLocalSavedSearch(item) {
+            const items = getLocalSavedSearches();
+            const key = JSON.stringify([
+                item.query_original || "",
+                (item.incluir_palabras || []).join(","),
+                item.modo_inclusion || "all",
+                (item.excluir_palabras || []).join(",")
+            ]);
+            const nextItems = items.filter((saved) => {
+                const savedKey = JSON.stringify([
+                    saved.query_original || "",
+                    (saved.incluir_palabras || []).join(","),
+                    saved.modo_inclusion || "all",
+                    (saved.excluir_palabras || []).join(",")
+                ]);
+                return savedKey !== key;
+            });
+            nextItems.push(item);
+            nextItems.sort((a, b) => (a.query_original || "").localeCompare(b.query_original || ""));
+            setLocalSavedSearches(nextItems);
+        }
+
+        async function fetchServerSavedSearches() {
+            const response = await fetch(`/saved-searches?visitor_id=${encodeURIComponent(visitorId)}`);
+            const data = await readJsonResponse(response);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "No se pudieron cargar las busquedas guardadas.");
+            }
+
+            return Array.isArray(data.items) ? data.items : [];
+        }
+
+        async function persistServerSavedSearch(item) {
+            const response = await fetch("/save-search", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    visitor_id: visitorId,
+                    query_original: item.query_original,
+                    query_mejorada: item.query_mejorada,
+                    total_productos: item.total_productos,
+                    chollos_detectados: item.chollos_detectados
+                })
+            });
+            const data = await readJsonResponse(response);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "No se pudo guardar la busqueda.");
+            }
+
+            return data;
+        }
+
+        function renderCard(product, rank) {
+            const badges = [];
+            if (product.etiqueta) {
+                badges.push(`<div class="badge">${escapeHtml(product.etiqueta)}</div>`);
+            }
+            if (product.es_chollo) {
+                badges.push(`<div class="badge bargain-badge">ðŸ”¥ Chollo detectado</div>`);
+            }
+            if (product.es_amazon) {
+                badges.push(`<div class="badge">Amazon</div>`);
+            }
+            if (product.es_afiliado_amazon) {
+                badges.push(`<div class="badge">Afiliado</div>`);
+            }
+
+            const imageMarkup = product.imagen
+                ? `<img src="${escapeHtml(product.imagen)}" alt="${escapeHtml(product.titulo)}">`
+                : `<div class="product-media-fallback">Vista previa no disponible</div>`;
+
+            const explanation = product.explicacion || "SelecciÃ³n pensada para decidir rÃ¡pido.";
+            const linkLabel = product.es_amazon ? "ðŸŸ¡ Ver en Amazon" : "ðŸŸ¡ Ver oferta";
+            const linkNote = product.es_afiliado_amazon
+                ? "Enlace de Amazon con tu tag de afiliado."
+                : product.link_original && product.link_original !== product.link
+                    ? "Se encontro una opcion equivalente en Amazon."
+                    : "Enlace directo al producto encontrado.";
+
+            return `
+                <article class="card featured-card ${rank ? "top-card" : ""}">
+                    <div class="badge-row">${badges.join("")}</div>
+                    <div class="product-media">${imageMarkup}</div>
+                    <div class="card-content">
+                        <div class="featured-kicker">${escapeHtml(product.categoria_destacada || `Destacado ${rank}`)}</div>
+                        <div class="title">${escapeHtml(product.titulo)}</div>
+                        <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                        <div class="product-explanation">${escapeHtml(explanation)}</div>
+                    </div>
+                    <div class="card-footer">
+                        <a class="card-link" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>
+                        <div class="link-note">${escapeHtml(linkNote)}</div>
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderSavedSearch(item) {
+            const queryJs = JSON.stringify(item.query_original || "");
+
+            return `
+                <article class="card">
+                    <div class="title">${escapeHtml(item.query_original)}</div>
+                    <div class="saved-meta">Mejorada: ${escapeHtml(item.query_mejorada)}</div>
+                    <div class="saved-meta">Ultima revision: ${escapeHtml(item.ultima_revision)}</div>
+                    <div class="saved-meta">Productos: ${escapeHtml(item.total_productos)}</div>
+                    <div class="saved-meta">Chollos detectados: ${escapeHtml(item.chollos_detectados)}</div>
+                    <div class="saved-actions">
+                        <button class="secondary-button small-button" type="button" onclick='repeatSearch(${queryJs})'>Buscar</button>
+                        <button class="secondary-button small-button" type="button" onclick='saveCurrentQuery(${queryJs})'>Actualizar guardada</button>
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderSpotlight(product) {
+            if (!product) {
+                spotlightBox.style.display = "none";
+                spotlightBox.innerHTML = "";
+                return;
+            }
+
+            spotlightBox.innerHTML = `
+                <div class="spotlight-label">Recomendacion principal</div>
+                <div class="spotlight-title">${escapeHtml(product.titulo)}</div>
+                <div class="spotlight-copy">
+                    ${escapeHtml(product.explicacion || product.etiqueta || "La seleccion mas equilibrada para decidir rapido.")}
+                </div>
+                <div class="spotlight-actions">
+                    <div>
+                        <div class="spotlight-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="link-note" style="color: rgba(255,255,255,0.72);">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
+                    </div>
+                    <a class="spotlight-button" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(product.es_amazon ? "ðŸŸ¡ Ver en Amazon" : "ðŸŸ¡ Ver oferta")}</a>
+                </div>
+            `;
+            spotlightBox.style.display = "block";
+        }
+
+        function renderCompareStrip(products) {
+            if (!products || !products.length) {
+                compareStrip.style.display = "none";
+                compareStrip.innerHTML = "";
+                return;
+            }
+
+            compareStrip.innerHTML = products.map((product) => `
+                <article class="compare-item">
+                    <strong>${escapeHtml(product.categoria_destacada || "Destacado")}</strong>
+                    <div class="compare-item-title">${escapeHtml(product.titulo)}</div>
+                    <div class="compare-item-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                </article>
+            `).join("");
+            compareStrip.style.display = "grid";
+        }
+
+        async function loadSavedSearches() {
+            let items = [];
+
+            if (serverStorageEnabled) {
+                try {
+                    items = await fetchServerSavedSearches();
+                } catch (error) {
+                    items = getLocalSavedSearches();
+                }
+            } else {
+                items = getLocalSavedSearches();
+            }
+
+            if (!items.length) {
+                savedGrid.innerHTML = `<article class="card"><div class="title">No hay busquedas guardadas todavia.</div><div class="saved-meta">Haz una busqueda y pulsa Guardar busqueda.</div><div class="saved-meta">${serverStorageEnabled ? "Se guardan en la base de datos para este navegador." : "Se guardan en este navegador, asi que funcionan bien en Render gratis."}</div></article>`;
+                return;
+            }
+
+            savedGrid.innerHTML = items.map(renderSavedSearch).join("");
+        }
+
+        async function doSearch() {
+            const query = queryInput.value.trim();
+
+            if (!query) {
+                statusBox.textContent = "Escribe algo para buscar.";
+                return;
+            }
+
+            statusBox.textContent = "Buscando productos...";
+            startLoadingState();
+            metaBox.style.display = "none";
+            topSection.style.display = "none";
+            spotlightBox.style.display = "none";
+            compareStrip.style.display = "none";
+            topGrid.innerHTML = "";
+
+            try {
+                const params = new URLSearchParams({
+                    query: query
+                });
+                const response = await fetch(`/search?${params.toString()}`);
+                const data = await readJsonResponse(response);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Ha ocurrido un error.");
+                }
+
+                latestSearchData = data;
+                const chollos = data.productos.filter((product) => product.es_chollo).length;
+                const average = data.precio_medio ? `${data.precio_medio} EUR` : "No disponible";
+
+                metaBox.innerHTML = `
+                    <strong>Resumen de la busqueda</strong>
+                    <div><b>Original:</b> ${escapeHtml(data.query_original)}</div>
+                    <div><b>Mejorada:</b> ${escapeHtml(data.query_mejorada)}</div>
+                    <div><b>Precio medio aproximado:</b> ${escapeHtml(average)}</div>
+                    <div><b>Chollos detectados:</b> ${escapeHtml(chollos)}</div>
+                `;
+                metaBox.style.display = "block";
+
+                topGrid.innerHTML = data.top_3_mejores_opciones
+                    .map((product, index) => renderCard(product, index + 1))
+                    .join("");
+
+                renderSpotlight(data.top_3_mejores_opciones[0]);
+                renderCompareStrip(data.top_3_mejores_opciones);
+
+                topSection.style.display = data.top_3_mejores_opciones.length ? "block" : "none";
+
+                if (!data.productos.length) {
+                    statusBox.textContent = "No se encontraron productos para esa busqueda.";
+                } else {
+                    statusBox.textContent = `Busqueda completada. Mostrando 3 opciones destacadas para decidir mas rapido.`;
+                    scrollResultsIntoView();
+                }
+                stopLoadingState(100);
+            } catch (error) {
+                stopLoadingState(100);
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function saveCurrentQuery(customQuery) {
+            const query = (customQuery || queryInput.value).trim();
+
+            if (!query) {
+                statusBox.textContent = "Primero escribe algo para guardar.";
+                return;
+            }
+
+            statusBox.textContent = "Guardando busqueda...";
+
+            try {
+                let data = latestSearchData;
+
+                const latestMatchesCurrent =
+                    data &&
+                    data.query_original === query;
+
+                if (!latestMatchesCurrent) {
+                    const params = new URLSearchParams({
+                        query: query
+                    });
+                    const response = await fetch(`/search?${params.toString()}`);
+                    data = await readJsonResponse(response);
+
+                    if (!response.ok) {
+                        throw new Error(data.detail || "No se pudo guardar la busqueda.");
+                    }
+                }
+
+                const item = {
+                    query_original: data.query_original,
+                    query_mejorada: data.query_mejorada,
+                    incluir_palabras: [],
+                    modo_inclusion: "all",
+                    excluir_palabras: [],
+                    guardada_en: nowLocalIso(),
+                    ultima_revision: nowLocalIso(),
+                    ultima_revision_dia: todayKey(),
+                    total_productos: (data.productos || []).length,
+                    chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
+                };
+
+                if (serverStorageEnabled) {
+                    try {
+                        await persistServerSavedSearch(item);
+                    } catch (error) {
+                        upsertLocalSavedSearch(item);
+                    }
+                } else {
+                    upsertLocalSavedSearch(item);
+                }
+
+                latestSearchData = data;
+                statusBox.textContent = `Busqueda guardada. Ultima revision: ${item.ultima_revision}`;
+                await loadSavedSearches();
+            } catch (error) {
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function reviewSavedSearchesNow() {
+            statusBox.textContent = "Revisando busquedas guardadas...";
+
+            try {
+                const items = serverStorageEnabled
+                    ? await fetchServerSavedSearches()
+                    : getLocalSavedSearches();
+
+                for (const item of items) {
+                    const params = new URLSearchParams({
+                        query: item.query_original || ""
+                    });
+                    const response = await fetch(`/search?${params.toString()}`);
+                    const data = await readJsonResponse(response);
+
+                    if (!response.ok) {
+                        throw new Error(data.detail || "No se pudieron revisar las busquedas guardadas.");
+                    }
+
+                    const refreshedItem = {
+                        query_original: data.query_original,
+                        query_mejorada: data.query_mejorada,
+                        incluir_palabras: [],
+                        modo_inclusion: "all",
+                        excluir_palabras: [],
+                        guardada_en: item.guardada_en || nowLocalIso(),
+                        ultima_revision: nowLocalIso(),
+                        ultima_revision_dia: todayKey(),
+                        total_productos: (data.productos || []).length,
+                        chollos_detectados: (data.productos || []).filter((product) => product.es_chollo).length
+                    };
+
+                    if (serverStorageEnabled) {
+                        try {
+                            await persistServerSavedSearch(refreshedItem);
+                        } catch (error) {
+                            upsertLocalSavedSearch(refreshedItem);
+                        }
+                    } else {
+                        upsertLocalSavedSearch(refreshedItem);
+                    }
+                }
+
+                statusBox.textContent = "Revision completada.";
+                await loadSavedSearches();
+            } catch (error) {
+                statusBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function runAutomaticLocalReviewIfNeeded() {
+            const items = getLocalSavedSearches();
+
+            if (!items.length) {
+                return;
+            }
+
+            const needsReview = items.some((item) => item.ultima_revision_dia !== todayKey());
+            if (!needsReview) {
+                return;
+            }
+
+            await reviewSavedSearchesNow();
+        }
+
+        function repeatSearch(text) {
+            queryInput.value = text;
+            doSearch();
+        }
+
+        window.repeatSearch = repeatSearch;
+        window.saveCurrentQuery = saveCurrentQuery;
+
+        searchButton.addEventListener("click", doSearch);
+        saveButton.addEventListener("click", () => saveCurrentQuery());
+        reviewSavedButton.addEventListener("click", reviewSavedSearchesNow);
+
+        queryInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                doSearch();
+            }
+        });
+
+        document.addEventListener("click", (event) => {
+            const spotlightLink = event.target.closest(".spotlight-button");
+            if (!spotlightLink || !latestSearchData || !latestSearchData.top_3_mejores_opciones?.length) {
+                return;
+            }
+
+            event.preventDefault();
+            window.open(buildTrackedLink(latestSearchData.top_3_mejores_opciones[0]), "_blank", "noopener,noreferrer");
+        });
+
+        loadSavedSearches();
+        startPlaceholderRotation();
+        runAutomaticLocalReviewIfNeeded();
+    </script>
+</body>
+</html>
+

@@ -1,7 +1,7 @@
 services:
   - type: web
     name: cracks
-    runtime: python
+    runtime: node
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    startCommand: node src/server.js
