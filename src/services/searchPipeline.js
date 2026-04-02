@@ -31,7 +31,7 @@ function pickQueriesForSource(source, interpretation, userInput) {
     .trim();
   const generic = [genericBase, userInput];
 
-  return uniqueQueries([sourceSpecific[0], ...generic]).slice(0, 2);
+  return uniqueQueries([...generic, sourceSpecific[0]]).slice(0, 2);
 }
 
 function withTimeout(promise, timeoutMs, label) {
@@ -75,9 +75,12 @@ async function searchAllSources(interpretation, userInput) {
     for (const sourceQuery of sourceQueries) {
       try {
         const items = await withTimeout(handler(sourceQuery), SCRAPER_TIMEOUT_MS, `El scraper ${source}`);
-        logger.info(`Scraper ${source}: ${items.length} resultados para "${sourceQuery}"`);
-        if (items.length) {
-          return items;
+        const relevantItems = filterProductsForIntent(items, userInput, interpretation);
+        logger.info(
+          `Scraper ${source}: ${items.length} resultados, ${relevantItems.length} relevantes para "${sourceQuery}"`
+        );
+        if (relevantItems.length) {
+          return relevantItems;
         }
       } catch (error) {
         logger.warn(`El scraper ${source} ha fallado para "${sourceQuery}".`, error.message);
@@ -149,8 +152,8 @@ function filterProductsForIntent(products, userInput, interpretation) {
       return true;
     }
 
-    const matchingTokens = tokens.filter((token) => title.includes(token));
-    return matchingTokens.length >= Math.min(2, tokens.length);
+    const matchingTokens = [...new Set(tokens.filter((token) => title.includes(token)))];
+    return matchingTokens.length >= 1;
   });
 }
 
@@ -266,14 +269,13 @@ async function executeSearch(userInput) {
 
   const interpretation = await interpretQuery(userInput);
   const rawProducts = await searchAllSources(interpretation, userInput);
-  const intentFilteredProducts = filterProductsForIntent(rawProducts, userInput, interpretation);
-  const normalizedProducts = normalizeProducts(intentFilteredProducts);
+  const normalizedProducts = normalizeProducts(rawProducts);
   const averagePrice = computeAveragePrice(normalizedProducts);
   const enrichedProducts = markBargains(normalizedProducts, averagePrice);
   const rankedProducts = rankProducts(enrichedProducts);
 
   logger.info(
-    `Pipeline de busqueda: ${rawProducts.length} raw, ${intentFilteredProducts.length} filtrados, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
+    `Pipeline de busqueda: ${rawProducts.length} relevantes, ${normalizedProducts.length} normalizados, ${rankedProducts.length} finales.`
   );
 
   if (!rankedProducts.length) {
