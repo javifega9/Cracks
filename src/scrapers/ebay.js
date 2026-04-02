@@ -1,6 +1,7 @@
 const cheerio = require("cheerio");
 const env = require("../config/env");
 const { fetchHtml } = require("../services/requestClient");
+const logger = require("../utils/logger");
 
 async function scrapeEbay(query) {
   const searchUrl = `https://www.ebay.es/sch/i.html?_nkw=${encodeURIComponent(query)}&_ipg=${env.maxResultsPerSource}&rt=nc`;
@@ -41,6 +42,44 @@ async function scrapeEbay(query) {
       url
     });
   });
+
+  if (!items.length) {
+    $('a[href*="/itm/"]').each((_, element) => {
+      if (items.length >= env.maxResultsPerSource) {
+        return false;
+      }
+
+      const container = $(element).closest("li, div");
+      const title =
+        $(element).attr("aria-label") ||
+        $(element).find("span").first().text().trim() ||
+        $(element).text().trim();
+      const url = $(element).attr("href") || "";
+      const price =
+        container.find(".s-item__price").first().text().trim() ||
+        container.text().match(/(\d+[.,]\d+)\s*\u20AC/i)?.[0] ||
+        "";
+
+      if (!title || !url || !price || title.toLowerCase().includes("shop on ebay")) {
+        return;
+      }
+
+      items.push({
+        title,
+        price,
+        original_price: null,
+        discount: null,
+        rating: null,
+        source: "ebay",
+        url
+      });
+    });
+  }
+
+  if (!items.length) {
+    const title = $("title").first().text().trim();
+    logger.warn(`eBay ha devuelto 0 resultados para "${query}".`, title || "Sin titulo de pagina");
+  }
 
   return items;
 }
