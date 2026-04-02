@@ -114,6 +114,17 @@ function buildAmazonAffiliateUrl(url) {
   return parsed.toString();
 }
 
+function buildAmazonSearchUrl(query, extraParams = {}) {
+  const url = new URL("https://www.amazon.es/s");
+  url.searchParams.set("k", query);
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  });
+  return buildAmazonAffiliateUrl(url.toString());
+}
+
 function buildSearchTokens(userInput, interpretation) {
   return uniqueQueries([
     interpretation?.product,
@@ -293,15 +304,73 @@ function pickFeaturedProducts(products) {
 }
 
 function buildFallbackResponse(userInput) {
+  const safeQuery = String(userInput || "").trim();
+  const cards = [
+    {
+      titulo: `${safeQuery} en Amazon`,
+      precio: "Ver resultados",
+      precio_numerico: null,
+      precio_original: null,
+      descuento: null,
+      rating: null,
+      tienda: "Amazon",
+      source: "amazon",
+      link: buildAmazonSearchUrl(safeQuery),
+      url: buildAmazonSearchUrl(safeQuery),
+      es_chollo: false,
+      es_amazon: true,
+      es_afiliado_amazon: Boolean(env.amazonAffiliateTag),
+      categoria_destacada: "Mejor opcion",
+      etiqueta: "Mejor opcion",
+      explicacion: "Abre los resultados principales de Amazon para esta busqueda."
+    },
+    {
+      titulo: `${safeQuery} mas baratos en Amazon`,
+      precio: "Ver ofertas ordenadas",
+      precio_numerico: null,
+      precio_original: null,
+      descuento: null,
+      rating: null,
+      tienda: "Amazon",
+      source: "amazon",
+      link: buildAmazonSearchUrl(safeQuery, { s: "price-asc-rank" }),
+      url: buildAmazonSearchUrl(safeQuery, { s: "price-asc-rank" }),
+      es_chollo: false,
+      es_amazon: true,
+      es_afiliado_amazon: Boolean(env.amazonAffiliateTag),
+      categoria_destacada: "Opcion mas barata",
+      etiqueta: "Mas barato",
+      explicacion: "Muestra primero las opciones mas economicas dentro de Amazon."
+    },
+    {
+      titulo: `${safeQuery} mejor valorados en Amazon`,
+      precio: "Ver mejor valorados",
+      precio_numerico: null,
+      precio_original: null,
+      descuento: null,
+      rating: null,
+      tienda: "Amazon",
+      source: "amazon",
+      link: buildAmazonSearchUrl(safeQuery, { s: "review-rank" }),
+      url: buildAmazonSearchUrl(safeQuery, { s: "review-rank" }),
+      es_chollo: false,
+      es_amazon: true,
+      es_afiliado_amazon: Boolean(env.amazonAffiliateTag),
+      categoria_destacada: "Mejor calidad-precio",
+      etiqueta: "Mejor calidad-precio",
+      explicacion: "Prioriza resultados con mejor valoracion para decidir mas rapido."
+    }
+  ];
+
   return {
-    query_original: userInput,
-    query_mejorada: userInput,
+    query_original: safeQuery,
+    query_mejorada: safeQuery,
     interpretation: null,
     cached: false,
     precio_medio: null,
-    productos: [],
-    top_3_mejores_opciones: [],
-    message: "No hemos podido recuperar ofertas ahora mismo. Intenta de nuevo en unos segundos."
+    productos: cards,
+    top_3_mejores_opciones: cards,
+    message: "No hemos podido extraer productos exactos ahora mismo. Te mostramos accesos directos utiles a Amazon."
   };
 }
 
