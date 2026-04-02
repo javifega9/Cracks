@@ -1,3 +1,5 @@
+process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || "0";
+
 const { chromium } = require("playwright");
 const env = require("../config/env");
 const logger = require("../utils/logger");

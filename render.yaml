@@ -3,5 +3,8 @@ services:
     name: cracks
     runtime: node
     plan: free
-    buildCommand: npm install && npx playwright install chromium
+    buildCommand: PLAYWRIGHT_BROWSERS_PATH=0 npm install && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
     startCommand: node src/server.js
+    envVars:
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "0"

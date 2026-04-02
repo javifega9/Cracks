@@ -91,7 +91,7 @@ Esta version ya esta preparada para Node + Playwright.
 
 Render usara:
 
-- `buildCommand`: `npm install && npx playwright install chromium`
+- `buildCommand`: `PLAYWRIGHT_BROWSERS_PATH=0 npm install && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium`
 - `startCommand`: `node src/server.js`
 
 Solo tienes que:
@@ -106,10 +106,10 @@ Solo tienes que:
 
 Lo mas comun es que falle por el navegador o por dependencias del sistema.
 
-La configuracion actual instala solo Chromium:
+La configuracion actual instala Chromium dentro del propio proyecto para que Render lo encuentre tambien en runtime:
 
 ```text
-npx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
 ```
 
 No usamos `--with-deps` en Render porque intenta elevar privilegios del sistema y suele fallar.

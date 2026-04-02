@@ -62,7 +62,7 @@ function buildFallbackQueries(userInput) {
       `${product} ${suffix} amazon`,
       `${product} ${suffix} ebay`,
       `${product} ${suffix} aliexpress`,
-      `${product} oferta españa`,
+      `${product} oferta espana`,
       `${product} mejor precio`
     ])
   };
@@ -81,20 +81,24 @@ async function interpretQuery(userInput) {
   }
 
   try {
-    // OpenAI solo se usa aquí: interpretación y expansión mínima de la consulta.
+    // OpenAI solo se usa aqui: interpretacion y expansion minima de la consulta.
     const response = await openai.responses.create({
       model: env.openAiModel,
       input: [
         {
           role: "system",
-          content:
-            "Extrae producto, detecta intencion de compra y genera de 3 a 5 consultas cortas optimizadas para ecommerce. Devuelve solo JSON."
+          content: [
+            {
+              type: "input_text",
+              text: "Extrae producto, detecta intencion de compra y genera de 3 a 5 consultas cortas optimizadas para ecommerce. Devuelve solo JSON."
+            }
+          ]
         },
         {
           role: "user",
           content: [
             {
-              type: "text",
+              type: "input_text",
               text: `Consulta del usuario: ${trimmed}
 
 Devuelve exactamente este JSON:
