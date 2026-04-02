@@ -25,6 +25,8 @@ function cleanAmazonTitle(value) {
     .replace(/\s+/g, " ")
     .replace(/^\s+|\s+$/g, "")
     .replace(/^\(?\d+\+?\s+ofertas?.*?\)?$/i, "")
+    .replace(/^precio,\s*pagina del producto$/i, "")
+    .replace(/^recibelo mas rapido$/i, "")
     .replace(/^\d+[.,]?\d*$/i, "")
     .replace(/^\d+[.,]\d+\s*\u20AC.*$/i, "")
     .trim();
@@ -36,24 +38,23 @@ function isLikelyAmazonProductTitle(title) {
     return false;
   }
 
-  const normalized = cleaned.toLowerCase();
+  const normalized = normalizeText(cleaned);
   if (cleaned.length < 12) {
     return false;
   }
   if (!/[a-z]/i.test(cleaned)) {
     return false;
   }
-  if (/^\(?\d+\+?\s+ofertas?/i.test(normalized)) {
-    return false;
-  }
-  if (/^\d+[.,]?\d*$/.test(normalized)) {
-    return false;
-  }
-  if (/^\d+[.,]\d+\s*\u20ac/.test(normalized)) {
-    return false;
-  }
 
-  return true;
+  const blockedPatterns = [
+    /^\(?\d+\+?\s+ofertas?/i,
+    /^\d+[.,]?\d*$/,
+    /^\d+[.,]\d+\s*\u20ac/,
+    /^precio pagina del producto$/,
+    /^recibelo mas rapido$/
+  ];
+
+  return !blockedPatterns.some((pattern) => pattern.test(normalized));
 }
 
 function titleMatchesQuery(title, query) {
@@ -66,7 +67,53 @@ function titleMatchesQuery(title, query) {
     return true;
   }
 
-  return tokens.some((token) => normalizedTitle.includes(token));
+  const alphaTokens = tokens.filter((token) => /[a-z]/.test(token));
+  const numericTokens = tokens.filter((token) => /\d/.test(token));
+
+  const hasAlpha = !alphaTokens.length || alphaTokens.some((token) => normalizedTitle.includes(token));
+  const hasNumeric = !numericTokens.length || numericTokens.some((token) => normalizedTitle.includes(token));
+
+  return hasAlpha && hasNumeric;
+}
+
+function extractPrice($, container) {
+  const offscreen = container.find(".a-price .a-offscreen").first().text().trim();
+  if (offscreen) {
+    return offscreen;
+  }
+
+  const whole = container.find(".a-price-whole").first().text().trim().replace(/\./g, "");
+  const fraction = container.find(".a-price-fraction").first().text().trim();
+  if (whole && fraction) {
+    return `${whole},${fraction} €`;
+  }
+
+  return "";
+}
+
+function extractOriginalPrice($, container) {
+  return (
+    container.find(".a-price.a-text-price .a-offscreen").first().text().trim() ||
+    container.find(".a-text-price .a-offscreen").first().text().trim() ||
+    ""
+  );
+}
+
+function extractRating($, container) {
+  const ratingText =
+    container.find(".a-icon-star-small .a-icon-alt").first().text().trim() ||
+    container.find("[aria-label*='de 5 estrellas']").first().attr("aria-label") ||
+    "";
+  const ratingMatch = ratingText.match(/([\d,.]+)/);
+  return ratingMatch ? ratingMatch[1].replace(",", ".") : null;
+}
+
+function pushIfValid(items, candidate) {
+  if (!candidate.title || !candidate.url || !candidate.price) {
+    return;
+  }
+
+  items.push(candidate);
 }
 
 async function scrapeAmazon(query) {
@@ -74,73 +121,77 @@ async function scrapeAmazon(query) {
   const html = await fetchHtml(searchUrl);
   const $ = cheerio.load(html);
   const items = [];
+  const seen = new Set();
 
-  $('[data-component-type="s-search-result"]').each((_, element) => {
+  $('div[data-asin]:not([data-asin=""])').each((_, element) => {
     if (items.length >= env.maxResultsPerSource) {
       return false;
     }
 
+    const container = $(element);
+    const anchor = container.find("h2 a").first();
     const rawTitle =
-      $(element).find("h2 a span").first().text().trim() ||
-      $(element).find("h2 span").first().text().trim() ||
-      $(element).find("a h2 span").first().text().trim() ||
+      anchor.text().trim() ||
+      container.find("h2").first().text().trim() ||
       "";
     const title = cleanAmazonTitle(rawTitle);
-    const url = absoluteAmazonUrl($(element).find("h2 a").attr("href"));
-    const price = $(element).find(".a-price .a-offscreen").first().text().trim() || "";
-    const originalPrice =
-      $(element).find(".a-price.a-text-price .a-offscreen").first().text().trim() ||
-      $(element).find(".a-text-price .a-offscreen").first().text().trim() ||
-      "";
-    const ratingText =
-      $(element).find(".a-icon-star-small .a-icon-alt").first().text().trim() ||
-      $(element).find("[aria-label*='de 5 estrellas']").first().attr("aria-label") ||
-      "";
-    const ratingMatch = ratingText.match(/([\d,.]+)/);
+    const url = absoluteAmazonUrl(anchor.attr("href"));
+    const price = extractPrice($, container);
+    const originalPrice = extractOriginalPrice($, container);
+    const rating = extractRating($, container);
 
     if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
       return;
     }
 
-    items.push({
+    const key = `${title}|${url}`;
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    pushIfValid(items, {
       title,
       price,
       original_price: originalPrice || null,
       discount: null,
-      rating: ratingMatch ? ratingMatch[1].replace(",", ".") : null,
+      rating,
       source: "amazon",
       url
     });
   });
 
   if (!items.length) {
-    $('a[href*="/dp/"], a[href*="/gp/"]').each((_, element) => {
+    $('h2 a[href*="/dp/"], h2 a[href*="/gp/"]').each((_, element) => {
       if (items.length >= env.maxResultsPerSource) {
         return false;
       }
 
-      const container = $(element).closest("div");
-      const rawTitle =
-        $(element).find("span").first().text().trim() ||
-        $(element).attr("aria-label") ||
-        $(element).text().trim();
+      const anchor = $(element);
+      const container = anchor.closest('div[data-asin], [data-component-type="s-search-result"], .s-result-item, .sg-col-inner, .a-section');
+      const rawTitle = anchor.text().trim() || "";
       const title = cleanAmazonTitle(rawTitle);
-      const url = absoluteAmazonUrl($(element).attr("href"));
-      const price =
-        container.find(".a-offscreen").first().text().trim() ||
-        container.text().match(/(\d+[.,]\d+)\s*\u20AC/i)?.[0] ||
-        "";
+      const url = absoluteAmazonUrl(anchor.attr("href"));
+      const price = extractPrice($, container);
+      const originalPrice = extractOriginalPrice($, container);
+      const rating = extractRating($, container);
 
       if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
         return;
       }
 
-      items.push({
+      const key = `${title}|${url}`;
+      if (seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      pushIfValid(items, {
         title,
         price,
-        original_price: null,
+        original_price: originalPrice || null,
         discount: null,
-        rating: null,
+        rating,
         source: "amazon",
         url
       });
