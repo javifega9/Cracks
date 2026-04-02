@@ -11,9 +11,8 @@ function absoluteAmazonUrl(url) {
 async function scrapeAmazon(query) {
   return withPage(async (page) => {
     const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(query)}`;
-    await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
-    await page.waitForSelector('[data-component-type="s-search-result"]', { timeout: 5000 }).catch(() => {});
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 12000 });
+    await page.waitForSelector('[data-component-type="s-search-result"]', { timeout: 3500 }).catch(() => {});
 
     const items = await page.$$eval(
       '[data-component-type="s-search-result"]',

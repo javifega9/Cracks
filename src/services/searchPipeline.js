@@ -10,7 +10,7 @@ const logger = require("../utils/logger");
 const { formatEuros, round } = require("../utils/price");
 
 const searchCache = new MemoryCache(env.cacheTtlMs);
-const SCRAPER_TIMEOUT_MS = 12000;
+const SCRAPER_TIMEOUT_MS = env.scraperTimeoutMs;
 
 const SCRAPERS = [
   { source: "amazon", handler: scrapeAmazon },
@@ -47,9 +47,26 @@ function withTimeout(promise, timeoutMs, label) {
   });
 }
 
+async function mapWithConcurrency(items, limit, worker) {
+  const results = [];
+  let index = 0;
+
+  async function runNext() {
+    while (index < items.length) {
+      const currentIndex = index;
+      index += 1;
+      results[currentIndex] = await worker(items[currentIndex], currentIndex);
+    }
+  }
+
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () => runNext());
+  await Promise.all(workers);
+  return results;
+}
+
 async function searchAllSources(interpretation, userInput) {
   // Cada marketplace intenta una query afinada y, si no devuelve nada, una version mas simple.
-  const tasks = SCRAPERS.map(async ({ source, handler }) => {
+  const results = await mapWithConcurrency(SCRAPERS, env.maxConcurrentScrapers, async ({ source, handler }) => {
     const sourceQueries = pickQueriesForSource(source, interpretation, userInput);
     if (!sourceQueries.length) {
       return [];
@@ -70,7 +87,6 @@ async function searchAllSources(interpretation, userInput) {
     return [];
   });
 
-  const results = await Promise.all(tasks);
   return results.flat();
 }
 

@@ -4,11 +4,10 @@ const { withPage } = require("../services/browser");
 async function scrapeAliExpress(query) {
   return withPage(async (page) => {
     const searchUrl = `https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(query)}`;
-    await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 12000 });
     await page
       .waitForSelector('a[href*="/item/"], a[href*="aliexpress.com/item/"]', {
-        timeout: 6000
+        timeout: 4000
       })
       .catch(() => {});
 
@@ -26,13 +25,13 @@ async function scrapeAliExpress(query) {
           const href = card.getAttribute("href") || "";
           const title = card.getAttribute("title") || card.textContent?.trim() || "";
           const priceMatch =
-            text.match(/€\s*([\d,.]+)/) ||
-            text.match(/([\d,.]+)\s*€/) ||
+            text.match(/\u20AC\s*([\d,.]+)/) ||
+            text.match(/([\d,.]+)\s*\u20AC/) ||
             text.match(/\$\s*([\d,.]+)/) ||
             text.match(/([\d,.]+)\s*USD/i);
           const oldPriceMatch =
-            text.match(/€\s*([\d,.]+).*?(\d+)\s*%/) ||
-            text.match(/([\d,.]+)\s*€\s*.*?(\d+)\s*%/) ||
+            text.match(/\u20AC\s*([\d,.]+).*?(\d+)\s*%/) ||
+            text.match(/([\d,.]+)\s*\u20AC\s*.*?(\d+)\s*%/) ||
             null;
           const discountMatch = text.match(/(\d+)\s*%/);
           const ratingMatch = text.match(/([\d,.]+)\s*(?:de 5|\/5|stars?)/i);
