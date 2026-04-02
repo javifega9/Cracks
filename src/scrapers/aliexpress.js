@@ -3,6 +3,7 @@ const { withPage } = require("../services/browser");
 
 function cleanAliExpressTitle(value) {
   return String(value || "")
+    .split(/\u20AC|\$|USD/i)[0]
     .replace(/\s+/g, " ")
     .replace(/^\s+|\s+$/g, "")
     .replace(/\b(?:\d+[,.]\d+\s*(?:€|eur|usd)|\d+\s*%|sold|verkauft|vorschau anzeigen|ahnliche artikel)\b/gi, "")
@@ -39,6 +40,7 @@ async function scrapeAliExpress(query) {
             container?.querySelector("img")?.getAttribute("alt") ||
             container?.querySelector("h1, h2, h3, h4")?.textContent ||
             card.textContent ||
+            container?.textContent ||
             "";
           const title = cleanAliExpressTitle(rawTitle);
           const priceMatch =

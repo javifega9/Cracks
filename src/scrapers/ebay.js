@@ -1,48 +1,48 @@
+const cheerio = require("cheerio");
 const env = require("../config/env");
-const { withPage } = require("../services/browser");
+const { fetchHtml } = require("../services/requestClient");
 
 async function scrapeEbay(query) {
-  return withPage(async (page) => {
-    const searchUrl = `https://www.ebay.es/sch/i.html?_nkw=${encodeURIComponent(query)}`;
-    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 12000 });
-    await page.waitForSelector(".s-item", { timeout: 3500 }).catch(() => {});
+  const searchUrl = `https://www.ebay.es/sch/i.html?_nkw=${encodeURIComponent(query)}&_ipg=${env.maxResultsPerSource}&rt=nc`;
+  const html = await fetchHtml(searchUrl);
+  const $ = cheerio.load(html);
+  const items = [];
 
-    const items = await page.$$eval(
-      ".s-item",
-      (nodes, limit) =>
-        nodes.map((node) => {
-          const title = node.querySelector(".s-item__title")?.textContent?.trim() || "";
-          const priceText = node.querySelector(".s-item__price")?.textContent?.trim() || "";
-          const oldPriceText =
-            node.querySelector(".s-item__trending-price .STRIKETHROUGH")?.textContent?.trim() ||
-            "";
-          const discountText =
-            node.querySelector(".s-item__discount")?.textContent?.trim() ||
-            node.querySelector(".s-item__dynamic.s-item__saving")?.textContent?.trim() ||
-            "";
-          const ratingText = node.querySelector(".x-star-rating span.clipped")?.textContent?.trim() || "";
-          const link = node.querySelector(".s-item__link")?.getAttribute("href") || "";
+  $(".s-item").each((_, element) => {
+    if (items.length >= env.maxResultsPerSource) {
+      return false;
+    }
 
-          const ratingMatch = ratingText.match(/([\d,.]+)/);
-          const discountMatch = discountText.match(/(\d+)/);
+    const title = $(element).find(".s-item__title").first().text().trim();
+    const url = $(element).find(".s-item__link").first().attr("href") || "";
+    const price = $(element).find(".s-item__price").first().text().trim();
+    const originalPrice =
+      $(element).find(".s-item__trending-price .STRIKETHROUGH").first().text().trim() ||
+      "";
+    const discountText =
+      $(element).find(".s-item__discount").first().text().trim() ||
+      $(element).find(".s-item__dynamic.s-item__saving").first().text().trim() ||
+      "";
+    const ratingText = $(element).find(".x-star-rating span.clipped").first().text().trim();
+    const ratingMatch = ratingText.match(/([\d,.]+)/);
+    const discountMatch = discountText.match(/(\d+)/);
 
-          return {
-            title,
-            price: priceText,
-            original_price: oldPriceText,
-            discount: discountMatch ? discountMatch[1] : null,
-            rating: ratingMatch ? ratingMatch[1].replace(",", ".") : null,
-            source: "ebay",
-            url: link
-          };
-        }),
-      env.maxResultsPerSource * 3
-    );
+    if (!title || !url || !price || title.toLowerCase().includes("shop on ebay")) {
+      return;
+    }
 
-    return items
-      .filter((item) => item.title && item.url && item.price && !item.title.toLowerCase().includes("shop on ebay"))
-      .slice(0, env.maxResultsPerSource);
+    items.push({
+      title,
+      price,
+      original_price: originalPrice || null,
+      discount: discountMatch ? discountMatch[1] : null,
+      rating: ratingMatch ? ratingMatch[1].replace(",", ".") : null,
+      source: "ebay",
+      url
+    });
   });
+
+  return items;
 }
 
 module.exports = scrapeEbay;
