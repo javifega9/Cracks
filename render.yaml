@@ -3,5 +3,5 @@ services:
     name: cracks
     runtime: node
     plan: free
-    buildCommand: npm install && npx playwright install --with-deps chromium
+    buildCommand: npm install && npx playwright install chromium
     startCommand: node src/server.js
