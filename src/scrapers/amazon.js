@@ -1,6 +1,7 @@
 const cheerio = require("cheerio");
 const env = require("../config/env");
 const { fetchHtml } = require("../services/requestClient");
+const { withPage } = require("../services/browser");
 const logger = require("../utils/logger");
 
 function absoluteAmazonUrl(url) {
@@ -49,7 +50,7 @@ function isLikelyAmazonProductTitle(title) {
   const blockedPatterns = [
     /^\(?\d+\+?\s+ofertas?/i,
     /^\d+[.,]?\d*$/,
-    /^\d+[.,]\d+\s*\u20ac/,
+    /^\d+[.,]\d+\s*u20ac/,
     /^precio pagina del producto$/,
     /^recibelo mas rapido$/
   ];
@@ -76,6 +77,82 @@ function titleMatchesQuery(title, query) {
   return hasAlpha && hasNumeric;
 }
 
+function sanitizeItems(items, query) {
+  const seen = new Set();
+  return (items || [])
+    .map((item) => ({
+      title: cleanAmazonTitle(item.title),
+      price: String(item.price || "").trim(),
+      original_price: item.original_price ? String(item.original_price).trim() : null,
+      discount: item.discount ?? null,
+      rating: item.rating ?? null,
+      source: "amazon",
+      url: absoluteAmazonUrl(item.url)
+    }))
+    .filter((item) => {
+      if (!item.title || !isLikelyAmazonProductTitle(item.title) || !titleMatchesQuery(item.title, query) || !item.url || !item.price) {
+        return false;
+      }
+      const key = `${item.title}|${item.url}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, env.maxResultsPerSource);
+}
+
+async function scrapeAmazonWithBrowser(query) {
+  const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(query)}`;
+  return withPage(async (page) => {
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.waitForSelector('div[data-asin]:not([data-asin=""]) h2 a', { timeout: 8000 }).catch(() => {});
+
+    const items = await page.$$eval('div[data-asin]:not([data-asin=""])', (nodes, limit) => {
+      const results = [];
+
+      for (const node of nodes) {
+        if (results.length >= limit) {
+          break;
+        }
+
+        const anchor = node.querySelector("h2 a");
+        const title =
+          anchor?.textContent?.trim() ||
+          node.querySelector("h2")?.textContent?.trim() ||
+          "";
+        const href = anchor?.getAttribute("href") || "";
+        const price =
+          node.querySelector(".a-price .a-offscreen")?.textContent?.trim() ||
+          "";
+        const originalPrice =
+          node.querySelector(".a-price.a-text-price .a-offscreen")?.textContent?.trim() ||
+          node.querySelector(".a-text-price .a-offscreen")?.textContent?.trim() ||
+          "";
+        const ratingText =
+          node.querySelector(".a-icon-star-small .a-icon-alt")?.textContent?.trim() ||
+          node.querySelector("[aria-label*='de 5 estrellas']")?.getAttribute("aria-label") ||
+          "";
+        const ratingMatch = ratingText.match(/([\d,.]+)/);
+
+        results.push({
+          title,
+          price,
+          original_price: originalPrice,
+          discount: null,
+          rating: ratingMatch ? ratingMatch[1].replace(",", ".") : null,
+          url: href
+        });
+      }
+
+      return results;
+    }, env.maxResultsPerSource * 4);
+
+    return sanitizeItems(items, query);
+  });
+}
+
 function extractPrice($, container) {
   const offscreen = container.find(".a-price .a-offscreen").first().text().trim();
   if (offscreen) {
@@ -85,7 +162,7 @@ function extractPrice($, container) {
   const whole = container.find(".a-price-whole").first().text().trim().replace(/\./g, "");
   const fraction = container.find(".a-price-fraction").first().text().trim();
   if (whole && fraction) {
-    return `${whole},${fraction} €`;
+    return `${whole},${fraction} EUR`;
   }
 
   return "";
@@ -108,102 +185,49 @@ function extractRating($, container) {
   return ratingMatch ? ratingMatch[1].replace(",", ".") : null;
 }
 
-function pushIfValid(items, candidate) {
-  if (!candidate.title || !candidate.url || !candidate.price) {
-    return;
-  }
-
-  items.push(candidate);
-}
-
-async function scrapeAmazon(query) {
+async function scrapeAmazonWithHtml(query) {
   const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(query)}`;
   const html = await fetchHtml(searchUrl);
   const $ = cheerio.load(html);
-  const items = [];
-  const seen = new Set();
+  const rawItems = [];
 
   $('div[data-asin]:not([data-asin=""])').each((_, element) => {
-    if (items.length >= env.maxResultsPerSource) {
+    if (rawItems.length >= env.maxResultsPerSource * 4) {
       return false;
     }
 
     const container = $(element);
     const anchor = container.find("h2 a").first();
-    const rawTitle =
-      anchor.text().trim() ||
-      container.find("h2").first().text().trim() ||
-      "";
-    const title = cleanAmazonTitle(rawTitle);
-    const url = absoluteAmazonUrl(anchor.attr("href"));
-    const price = extractPrice($, container);
-    const originalPrice = extractOriginalPrice($, container);
-    const rating = extractRating($, container);
-
-    if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
-      return;
-    }
-
-    const key = `${title}|${url}`;
-    if (seen.has(key)) {
-      return;
-    }
-
-    seen.add(key);
-    pushIfValid(items, {
-      title,
-      price,
-      original_price: originalPrice || null,
+    rawItems.push({
+      title: anchor.text().trim() || container.find("h2").first().text().trim() || "",
+      price: extractPrice($, container),
+      original_price: extractOriginalPrice($, container) || null,
       discount: null,
-      rating,
-      source: "amazon",
-      url
+      rating: extractRating($, container),
+      url: anchor.attr("href")
     });
   });
 
-  if (!items.length) {
-    $('h2 a[href*="/dp/"], h2 a[href*="/gp/"]').each((_, element) => {
-      if (items.length >= env.maxResultsPerSource) {
-        return false;
-      }
-
-      const anchor = $(element);
-      const container = anchor.closest('div[data-asin], [data-component-type="s-search-result"], .s-result-item, .sg-col-inner, .a-section');
-      const rawTitle = anchor.text().trim() || "";
-      const title = cleanAmazonTitle(rawTitle);
-      const url = absoluteAmazonUrl(anchor.attr("href"));
-      const price = extractPrice($, container);
-      const originalPrice = extractOriginalPrice($, container);
-      const rating = extractRating($, container);
-
-      if (!title || !isLikelyAmazonProductTitle(title) || !titleMatchesQuery(title, query) || !url || !price) {
-        return;
-      }
-
-      const key = `${title}|${url}`;
-      if (seen.has(key)) {
-        return;
-      }
-
-      seen.add(key);
-      pushIfValid(items, {
-        title,
-        price,
-        original_price: originalPrice || null,
-        discount: null,
-        rating,
-        source: "amazon",
-        url
-      });
-    });
-  }
-
+  const items = sanitizeItems(rawItems, query);
   if (!items.length) {
     const title = $("title").first().text().trim();
     logger.warn(`Amazon ha devuelto 0 resultados para "${query}".`, title || "Sin titulo de pagina");
   }
 
   return items;
+}
+
+async function scrapeAmazon(query) {
+  try {
+    const browserItems = await scrapeAmazonWithBrowser(query);
+    if (browserItems.length) {
+      return browserItems;
+    }
+  } catch (error) {
+    logger.warn(`Amazon browser fallback para "${query}".`, error.message);
+  }
+
+  return scrapeAmazonWithHtml(query);
 }
 
 module.exports = scrapeAmazon;
