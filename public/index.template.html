@@ -456,6 +456,12 @@
             letter-spacing: -0.04em;
         }
 
+        .spotlight-price.spotlight-helper {
+            font-size: 1.08rem;
+            letter-spacing: 0;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
         .spotlight-button {
             display: inline-flex;
             align-items: center;
@@ -613,6 +619,13 @@
             font-weight: 800;
             letter-spacing: -0.06em;
             line-height: 1;
+        }
+
+        .price.price-helper {
+            font-size: 1.02rem;
+            letter-spacing: 0;
+            line-height: 1.35;
+            color: rgba(17, 17, 17, 0.76);
         }
 
         .store,
@@ -1177,6 +1190,7 @@
 
             const explanation = product.explicacion || "Seleccion pensada para decidir rapido.";
             const linkLabel = product.es_amazon ? "Ver en Amazon" : "Ver oferta";
+            const hasNumericPrice = Number.isFinite(product.precio_numerico);
             const linkNote = product.es_afiliado_amazon
                 ? "Enlace de Amazon con tu tag de afiliado."
                 : product.link_original && product.link_original !== product.link
@@ -1190,7 +1204,7 @@
                     <div class="card-content">
                         <div class="featured-kicker">${escapeHtml(product.categoria_destacada || `Destacado ${rank}`)}</div>
                         <div class="title">${escapeHtml(product.titulo)}</div>
-                        <div class="price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="${hasNumericPrice ? "price" : "price price-helper"}">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="store">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
                         <div class="product-explanation">${escapeHtml(explanation)}</div>
                     </div>
@@ -1227,6 +1241,8 @@
                 return;
             }
 
+            const hasNumericPrice = Number.isFinite(product.precio_numerico);
+
             spotlightBox.innerHTML = `
                 <div class="spotlight-label">Recomendacion principal</div>
                 <div class="spotlight-title">${escapeHtml(product.titulo)}</div>
@@ -1235,7 +1251,7 @@
                 </div>
                 <div class="spotlight-actions">
                     <div>
-                        <div class="spotlight-price">${escapeHtml(product.precio || "Precio no disponible")}</div>
+                        <div class="${hasNumericPrice ? "spotlight-price" : "spotlight-price spotlight-helper"}">${escapeHtml(product.precio || "Precio no disponible")}</div>
                         <div class="link-note" style="color: rgba(255,255,255,0.72);">${escapeHtml(product.tienda || "Tienda no disponible")}</div>
                     </div>
                     <a class="spotlight-button" href="${escapeHtml(buildTrackedLink(product))}" target="_blank" rel="noopener noreferrer">${escapeHtml(product.es_amazon ? "Ver en Amazon" : "Ver oferta")}</a>
